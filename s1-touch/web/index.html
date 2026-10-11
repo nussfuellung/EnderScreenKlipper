@@ -1,0 +1,1211 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#121314">
+<title>S1 Touch</title>
+<script>
+/* ===== Grundkonfiguration (kann auch in der App unter Einstellungen geändert werden) =====
+   host: ""        -> Demo-Modus
+   host: "proxy"   -> Moonraker wird über denselben Server erreicht (nginx-Proxy, empfohlen)
+   host: "192.168.1.50", port: 7125 -> direkt zum Klipper-Host                               */
+window.S1_CONFIG = {
+  name: "Ender-3 S1",
+  host: "",
+  port: 7125,
+  webcam: "",              // z.B. "/webcam/?action=stream" (Proxy) oder "http://192.168.1.50/webcam/?action=stream"
+  // ---- Schalter (Licht / Netzteil) ----
+  // Quelle: "auto" | "klipper" | "moonraker" | "ha" | "gcode" | "none"
+  //  auto = Klipper output_pin/led oder Moonraker-[power]-Gerät mit passendem Namen
+  lightSrc: "auto", lightRef: "",      // z.B. "ha" + "light.drucker_licht"
+  lightOnG: "", lightOffG: "",         // nur für lightSrc "gcode"
+  psuSrc: "auto", psuRef: "",          // z.B. "ha" + "switch.drucker_steckdose" oder "moonraker" + "drucker"
+  psuAutoOff: false,                   // Netzteil nach Druckende aus, sobald Düse < 50 °C
+  extras: "",                          // weitere Schalter: "ha:switch.absaugung=Absaugung, mr:enclosure"
+  // Home Assistant direkt: "proxy" = über nginx (/ha, Token liegt im Server) oder "http://ha:8123" + Token
+  haUrl: "", haToken: "",
+  // Papier-Tramming: Düsenpositionen über den Bettschrauben (aus Klippers Ender-3-S1-Referenzconfig [bed_screws])
+  corners: [[20,29],[195,29],[195,198],[20,198]]
+};
+</script>
+<style>
+:root{--bg:#121314;--panel:#2a2c2f;--card:#393b3f;--card2:#46494e;--txt:#f4f5f6;--sub:#a3a7ad;--acc:#3dbb61;--warn:#f5a524;--err:#ef4444;--r:1rem}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:Inter,"Segoe UI",Roboto,"Helvetica Neue",system-ui,sans-serif;overflow:hidden;touch-action:manipulation}
+html{font-size:clamp(11px,2.25vh,26px)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select{font:inherit;-webkit-user-select:text;user-select:text}
+svg.i{width:1.6rem;height:1.6rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#app{position:fixed;inset:0;display:flex;gap:.9rem;padding:.9rem;background:linear-gradient(160deg,#1d1f21,#0f1011)}
+#side{width:4.4rem;flex:none;background:var(--panel);border-radius:var(--r);display:flex;flex-direction:column;justify-content:space-evenly;align-items:center}
+.nav{width:3.4rem;height:3.4rem;display:grid;place-items:center;color:#e3e5e8;border-radius:.8rem;position:relative;transition:color .15s}
+.nav svg.i{width:2.1rem;height:2.1rem}
+.nav.on{color:var(--acc)}
+.badge{position:absolute;top:.1rem;right:0;background:var(--err);color:#fff;font-size:.68rem;font-weight:700;min-width:1.15rem;height:1.15rem;border-radius:1rem;display:grid;place-items:center;padding:0 .3rem}
+main{flex:1;position:relative;min-width:0}
+.page{position:absolute;inset:0;display:none;gap:.9rem}
+.page.on{display:grid}
+.card{background:var(--card);border-radius:var(--r);position:relative;overflow:hidden}
+.in{padding:1.1rem 1.2rem}
+.tap{transition:transform .08s,filter .15s}
+.tap:active{transform:scale(.97);filter:brightness(1.2)}
+.sub{color:var(--sub);font-size:.85rem;line-height:1.4}
+.ico{width:2.6rem;height:2.6rem;border-radius:50%;background:rgba(255,255,255,.15);display:grid;place-items:center;flex:none}
+.ico svg.i{width:1.45rem;height:1.45rem}
+h3{margin:0 0 .8rem;font-size:1.2rem;font-weight:600}
+
+/* --- Ender Illustration --- */
+svg.ender{overflow:visible;width:100%;height:100%}
+.ender .fil{fill:#e8e8e8}
+.ender .lamp{fill:#4a4c50;transition:fill .3s}
+.ender.lit .lamp{fill:#fff6dc;filter:url(#fGlow)}
+.ender .cone{opacity:0;transition:opacity .4s}
+.ender.lit .cone{opacity:1}
+.ender .gantry,.ender .head,.ender .bedG{transition:transform .8s ease}
+.ender text{font-size:11px;fill:#fff;font-weight:600;font-family:inherit}
+.leadp{fill:none;stroke:rgba(255,255,255,.5);stroke-width:1.2;stroke-dasharray:3 4}
+.ldot{fill:#fff}
+
+/* --- Home --- */
+.home-idle,.home-print{display:grid;gap:.9rem;height:100%;position:absolute;inset:0}
+.home-idle{grid-template-columns:1fr 1fr;grid-template-rows:1.7fr 1fr}
+.hero{grid-column:1/3;display:flex;align-items:center;background:linear-gradient(120deg,#36393d,#2a2c2f)}
+.hero-img{width:46%;height:100%;padding:1.2rem 0 .8rem 1rem}
+.hero-txt{flex:1;padding:0 2rem 0 1rem}
+.greet{font-size:1.5rem;line-height:1.4;border-left:3px solid var(--acc);padding-left:1rem}
+.pname{margin:.9rem 0 0 1.3rem}
+.tile-files{display:flex;align-items:center;justify-content:center;gap:1.3rem;font-size:1.25rem}
+.tile-files svg.i{width:4.4rem;height:4.4rem;stroke-width:1.2;color:#eadfca}
+.stat{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:center}
+.stat>div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.45rem;border-right:1px solid rgba(255,255,255,.1);height:62%;font-size:.95rem;text-align:center}
+.stat>div:last-child{border:0}
+.stat svg.i{width:1.8rem;height:1.8rem}
+.ok{color:var(--acc)}.warn{color:var(--warn)}.bad{color:var(--err)}
+.home-print{grid-template-columns:1fr 1fr;grid-template-rows:1fr 7.4rem}
+.thumbc{display:flex;flex-direction:column}
+.thumbc img,.ph-thumb{flex:1;min-height:0;width:100%;object-fit:contain;padding:2rem 1rem .3rem}
+.ph-thumb{display:grid;place-items:center;color:#6a6d72}
+.ph-thumb svg.i{width:5rem;height:5rem;stroke-width:1}
+.files-link{position:absolute;top:.7rem;right:1rem;font-size:.95rem;z-index:2;padding:.2rem .3rem}
+.fname{padding:.5rem 1rem .9rem;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.printer{display:flex;background:#303236}
+.pr-img{flex:1;padding:.8rem .6rem .6rem;min-width:0}
+#pr-cam{flex:1;object-fit:cover;min-width:0;background:#000}
+.cam-btn{position:absolute;left:.6rem;top:.6rem;width:2.5rem;height:2.5rem;border-radius:.7rem;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:2}
+.cam-btn.on{color:var(--acc)}
+.extr{width:27%;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.9rem;text-align:center;font-size:.9rem}
+.spoolm{width:3.6rem;height:3.6rem;border-radius:50%;background:#18191b;border:2px solid rgba(255,255,255,.25);display:grid;place-items:center}
+.spoolm i{width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center}
+.spoolm i::after{content:"";width:.8rem;height:.8rem;border-radius:50%;background:#0e0f10}
+.pill{background:rgba(0,0,0,.45);border-radius:1rem;padding:.25rem .7rem;display:inline-flex;gap:.35rem;align-items:center;font-weight:600}
+.pill svg.i{width:1rem;height:1rem}
+.pbar-row{grid-column:1/3;display:flex;gap:.9rem}
+.prog{flex:1;padding:.9rem 1.3rem;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem}
+.pct{font-size:1.55rem;font-weight:600}
+.lay{font-size:1rem;color:#e6e7e9;white-space:nowrap}
+.bar{height:.6rem;background:#1a1b1d;border-radius:1rem;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#61dc7a,#3dbb61);border-radius:1rem;transition:width .6s}
+.pstate{font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bigbtn{width:6.3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;font-size:.9rem;background:var(--card2)}
+.bigbtn svg.i{width:1.9rem;height:1.9rem}
+.bigbtn.stop svg.i{color:var(--err)}
+.bigbtn:disabled{opacity:.35}
+.bigbtn.tune{background:var(--panel)}
+
+/* --- Steuerung --- */
+#pg-control{grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:.85fr 1.45fr .85fr .85fr;grid-template-areas:"fan spd mot" "noz img img" "mcu img img" "bed img img"}
+.ctl{display:flex;align-items:center;gap:.9rem;padding:0 1.1rem;text-align:left}
+.ctl small{display:block;font-size:.95rem;color:#e6e7e9}
+.ctl b{display:block;font-size:1.4rem;font-weight:600;margin-top:.15rem;white-space:nowrap}
+.ctl.tall{flex-direction:column;align-items:stretch;justify-content:center;gap:1rem;padding:1rem 1.1rem}
+.ctl .hd{display:flex;align-items:center;gap:.9rem}
+.ctl .bd{display:flex;align-items:center;gap:1rem;padding-left:1rem}
+.ctl .bd b{font-size:1.9rem}
+.ctl .bd svg.i{width:2.6rem;height:2.6rem;stroke-width:1.4}
+.ctl-img{grid-area:img;position:relative;min-height:0;padding:.4rem 0 0 2.5rem}
+.sws{position:absolute;right:.3rem;bottom:.3rem;display:flex;flex-direction:column;gap:.5rem;align-items:stretch}
+.light{display:flex;align-items:center;gap:.6rem;padding:.55rem .9rem;background:rgba(70,73,78,.92);font-size:1.05rem;justify-content:space-between}
+.light svg.i{color:var(--acc)}
+#c-psu svg.i{color:#f5c542}
+.light .lt{display:flex;align-items:center;gap:.6rem}
+.sw{width:3rem;height:1.65rem;border-radius:1rem;background:#5b5e63;position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:.17rem;left:.17rem;width:1.3rem;height:1.3rem;border-radius:50%;background:#fff;transition:left .2s}
+.sw.on{background:var(--acc)}.sw.on::after{left:1.53rem}
+
+/* --- Filament --- */
+#pg-filament{grid-template-columns:1fr 1.35fr;grid-template-rows:1fr auto}
+.fil-left{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;text-align:center}
+.bigspool{width:11rem;height:11rem;border-radius:50%;background:#18191b;border:3px solid rgba(255,255,255,.2);display:grid;place-items:center;box-shadow:inset 0 0 0 .8rem #222}
+.bigspool i{width:7.8rem;height:7.8rem;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 1.2rem rgba(0,0,0,.35)}
+.bigspool i::after{content:"";width:2.4rem;height:2.4rem;border-radius:50%;background:#0e0f10;border:2px solid #333}
+.fmat{font-size:1.6rem;font-weight:700}
+.fil-right{display:flex;flex-direction:column;gap:.8rem}
+.swatches{display:flex;flex-wrap:wrap;gap:.55rem}
+.swatch{width:2.4rem;height:2.4rem;border-radius:50%;border:2px solid rgba(255,255,255,.2)}
+.swatch.on{outline:3px solid var(--acc);outline-offset:2px}
+.ftemp{display:flex;gap:.7rem;align-items:center;margin-top:auto}
+.ftemp .pill{font-size:1.05rem;padding:.55rem .9rem}
+.fil-actions{grid-column:1/3;display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;height:6.4rem}
+.act{display:flex;align-items:center;justify-content:center;gap:.9rem;font-size:1.15rem;font-weight:500}
+.act svg.i{width:2rem;height:2rem}
+
+/* --- Einstellungen --- */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:.9rem;position:absolute;inset:0}
+.tile{display:flex;flex-direction:column;justify-content:center;gap:.45rem;padding:1rem 1.2rem;text-align:left}
+.tile b{font-size:1.1rem;font-weight:600;margin-top:.3rem}
+.tile.danger .ico{background:var(--err);color:#fff}
+.tile .badge{top:.7rem;right:.8rem}
+
+/* --- Konsole --- */
+#pg-msg{grid-template-columns:1fr}
+.con{display:flex;flex-direction:column;min-height:0}
+.con-head{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.1rem;border-bottom:1px solid rgba(255,255,255,.07)}
+.log{flex:1;overflow:auto;padding:.6rem 1.1rem;font-size:.82rem;-webkit-user-select:text;user-select:text}
+.ll{padding:.18rem 0;border-bottom:1px solid rgba(255,255,255,.035);word-break:break-word;font-family:ui-monospace,Menlo,Consolas,monospace}
+.ll span{color:#6f7378;margin-right:.7rem}
+.ll.cmd{color:#8fd3ff}.ll.err{color:#ff8080}
+.quick{display:flex;gap:.5rem;flex-wrap:wrap;padding:.6rem 1.1rem;border-top:1px solid rgba(255,255,255,.07)}
+.con-in{display:flex;gap:.6rem;padding:0 1.1rem 1rem}
+.con-in input{flex:1}
+
+/* --- Overlay / Modal / Controls --- */
+#ov{position:fixed;inset:0;background:linear-gradient(160deg,#1d1f21,#0f1011);z-index:20;display:flex;flex-direction:column;padding:.9rem}
+.ov-head{display:flex;align-items:center;gap:.9rem;height:3.2rem;flex:none}
+.ov-head h2{font-size:1.35rem;font-weight:600;margin:0;flex:1}
+.back{width:3.2rem;height:3.2rem;border-radius:.8rem;background:var(--card);display:grid;place-items:center}
+.ov-body{flex:1;min-height:0;overflow:auto;padding-top:.9rem}
+#modal{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.6);display:grid;place-items:center}
+.mbox{background:#2f3134;border-radius:1.2rem;padding:1.4rem;width:min(92vw,34rem);max-height:94vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.mbox.wide{width:min(95vw,56rem)}
+.row{display:flex;gap:.7rem;margin-top:1rem}.row>.btn{flex:1}
+.btn{background:var(--card2);border-radius:.8rem;padding:.85rem 1rem;font-size:1rem;text-align:center;font-weight:500}
+.btn.pri{background:var(--acc);color:#04170b;font-weight:600}
+.btn.red{background:var(--err);color:#fff}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18)}
+.btn:disabled{opacity:.4}
+.btn.big{padding:1.1rem;font-size:1.1rem;width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{background:var(--card2);border-radius:2rem;padding:.55rem 1rem;font-size:.95rem}
+.chip.on{background:var(--acc);color:#04170b;font-weight:600}
+.kv{display:flex;justify-content:space-between;gap:1rem;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.kv b{font-weight:600;text-align:right}
+.bigval{font-size:2.4rem;font-weight:700;text-align:center;margin:.3rem 0 1rem;font-variant-numeric:tabular-nums}
+.np-disp{font-size:2.6rem;text-align:center;font-weight:600;margin:.2rem 0 .8rem;font-variant-numeric:tabular-nums;background:#1d1e20;border-radius:.8rem;padding:.4rem}
+.np-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.8rem}
+.key{background:var(--card2);border-radius:.8rem;height:3.3rem;font-size:1.4rem}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:.5rem;background:#1b1c1e;border-radius:1rem;outline:0;margin:1rem 0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1.9rem;height:1.9rem;border-radius:50%;background:#fff;border:.35rem solid var(--acc)}
+input[type=range]::-moz-range-thumb{width:1.2rem;height:1.2rem;border-radius:50%;background:#fff;border:.35rem solid var(--acc)}
+input[type=text],input[type=number],input[type=url],select{width:100%;background:#1d1e20;border:1px solid rgba(255,255,255,.14);border-radius:.7rem;padding:.75rem .9rem;color:var(--txt);margin-top:.35rem}
+label.f{display:block;margin-bottom:.9rem;font-size:.92rem;color:#d9dbde}
+label.f small{color:var(--sub)}
+.chk{display:flex;align-items:center;gap:.7rem;margin:.9rem 0;font-size:1rem}
+.chk input{width:1.4rem;height:1.4rem;accent-color:var(--acc)}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem}
+.mode{background:var(--card2);border-radius:.9rem;padding:.9rem .5rem;text-align:center}
+.mode b{display:block;font-size:1.05rem}.mode span{font-size:.85rem;color:var(--sub)}
+.mode.on{background:var(--acc);color:#04170b}.mode.on span{color:#0b3a1b}
+.mot{display:grid;grid-template-columns:auto auto 1fr;gap:1.4rem;align-items:center}
+.pad{display:grid;grid-template-columns:repeat(3,4.2rem);grid-template-rows:repeat(3,4.2rem);gap:.45rem}
+.jb{background:var(--card2);border-radius:.9rem;display:grid;place-items:center;font-weight:600;font-size:.9rem}
+.jb svg.i{width:1.8rem;height:1.8rem}
+.zcol{display:grid;grid-template-rows:repeat(3,4.2rem);gap:.45rem;width:4.6rem}
+.posbox .kv b{font-variant-numeric:tabular-nums}
+.hm{display:inline-block;width:1.5rem;text-align:center;border-radius:.3rem;margin-left:.2rem;background:#555;font-size:.8rem;font-weight:700}
+.hm.on{background:var(--acc);color:#04170b}
+.trow{display:grid;grid-template-columns:8rem 1fr 4.5rem;align-items:center;gap:.8rem}
+.trow b{text-align:right;font-variant-numeric:tabular-nums}
+.zrow{display:flex;gap:.5rem;align-items:center;margin:.4rem 0 .8rem}
+.zrow .btn{flex:1;padding:.75rem .3rem}
+.zrow b{min-width:5.5rem;text-align:center;font-size:1.3rem;font-variant-numeric:tabular-nums}
+#toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:.5rem;align-items:center;pointer-events:none}
+.tst{background:#3f4247;padding:.75rem 1.3rem;border-radius:.9rem;box-shadow:0 8px 30px rgba(0,0,0,.45);font-size:1rem;max-width:80vw;animation:tin .25s}
+.tst.err{background:#6b2020}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}}
+#conn{position:fixed;inset:0;z-index:15;background:rgba(10,11,12,.93);display:grid;place-items:center;text-align:center}
+#conn .box{max-width:36rem;padding:2rem}
+.spin{width:3rem;height:3rem;border-radius:50%;border:.3rem solid rgba(255,255,255,.15);border-top-color:var(--acc);animation:sp 1s linear infinite;margin:0 auto 1rem}
+@keyframes sp{to{transform:rotate(360deg)}}
+.okc,.errc{width:3.2rem;height:3.2rem;border-radius:50%;display:grid;place-items:center;margin:0 auto 1rem;font-size:1.6rem;font-weight:800}
+.okc{background:var(--acc);color:#04170b}.errc{background:var(--err)}
+.job{text-align:center}.job .kv{text-align:left}
+.jlog{min-height:2.6rem;font-size:.8rem;color:var(--sub);margin-top:.8rem;text-align:left}
+.chiptop{position:fixed;top:.9rem;right:.9rem;z-index:12;border-radius:2rem;padding:.45rem 1rem;font-size:.85rem;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+#demo-chip{background:var(--warn);color:#241500}
+#save-chip{background:var(--acc);color:#04170b;top:3.2rem}
+#po-chip{top:5.5rem;background:#f5c542;color:#2a1f00}
+.swrow{display:flex;align-items:center;gap:.9rem;width:100%;background:var(--card2);border-radius:.9rem;padding:.7rem .9rem;margin-bottom:.55rem;text-align:left}
+.swrow>span:nth-child(2){flex:1;min-width:0}.swrow b{display:block;font-weight:600}.swrow small{color:var(--sub);font-size:.8rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.setg{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}.setg .full{grid-column:1/3}
+.sgrid{display:grid;grid-template-columns:8rem 13rem 1fr;gap:.6rem;align-items:center;margin-bottom:.6rem}.sgrid select,.sgrid input{margin:0}
+#conn .btn.big{margin-top:1rem}
+/* Dateien */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(12rem,1fr));gap:.9rem}
+.fcard{display:flex;flex-direction:column;text-align:left}
+.fthumb{aspect-ratio:1.25;display:grid;place-items:center;background:#303236;color:#666}
+.fthumb img{width:100%;height:100%;object-fit:contain;padding:.6rem}
+.fthumb svg.i{width:3rem;height:3rem;stroke-width:1}
+.fn{padding:.6rem .8rem 0;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm{padding:.2rem .8rem .7rem}
+.fdet{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start}
+.fdet img,.fdet .ph{width:100%;aspect-ratio:1.2;object-fit:contain;background:#25272a;border-radius:.8rem}
+.fdet .ph{display:grid;place-items:center;color:#666}
+/* Wizards */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;height:100%}
+.zhuge{font-size:4.2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;margin:.3rem 0 1rem}
+.zbtns{display:grid;grid-template-rows:1fr 1fr;gap:.9rem}
+.zbtn{background:var(--card2);border-radius:1rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;font-size:1.1rem;font-weight:600}
+.zbtn svg.i{width:2.6rem;height:2.6rem}
+.mgrid{display:grid;gap:4px;width:100%;max-width:100%;aspect-ratio:1;max-height:100%;margin:auto}
+.mc{display:grid;place-items:center;border-radius:5px;font-size:.78rem;font-weight:700;color:#0c0c0c;font-variant-numeric:tabular-nums}
+.mwrap{display:flex;flex-direction:column;gap:.5rem;min-height:0}
+.mwrap .lbl{display:flex;justify-content:space-between;color:var(--sub);font-size:.8rem}
+.mside{overflow:auto}
+.prow{display:flex;align-items:center;gap:.5rem;padding:.4rem 0}
+.prow span{flex:1}.prow .btn{padding:.5rem .8rem;font-size:.9rem}
+.bedsq{position:relative;aspect-ratio:1;height:100%;max-width:100%;margin:auto;background:linear-gradient(135deg,#3d372c,#29251f);border-radius:.9rem;border:1px solid rgba(255,255,255,.22)}
+.bedsq .lbl{position:absolute;left:50%;transform:translateX(-50%);font-size:.75rem;color:var(--sub)}
+.scr{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:.35rem}
+.scr i{width:2.8rem;height:2.8rem;border-radius:50%;background:#1b1c1e;border:3px solid #6d7177;display:grid;place-items:center;font-style:normal;font-weight:700}
+.scr.cur i{border-color:var(--acc);box-shadow:0 0 0 .3rem rgba(61,187,97,.3)}
+.scr em{font-style:normal;font-size:.85rem;font-weight:700;padding:.2rem .6rem;border-radius:1rem;background:#1b1c1e;white-space:nowrap}
+.scr.g em{background:var(--acc);color:#04170b}.scr.y em{background:var(--warn);color:#241500}.scr.r em{background:var(--err)}.scr.b em{background:#5b5e63}
+.tabs{display:flex;background:#1d1e20;border-radius:.8rem;padding:.25rem;margin-bottom:1rem}
+.tabs button{flex:1;padding:.6rem;border-radius:.6rem;font-size:.95rem}
+.tabs button.on{background:var(--card2);font-weight:600}
+.skip{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.skmap{width:100%;aspect-ratio:1;background:#25272a;border-radius:.8rem}
+.skmap polygon{fill:rgba(255,255,255,.25);stroke:#fff;stroke-width:1}
+.skmap polygon.cur{fill:rgba(61,187,97,.55);stroke:var(--acc)}
+.skmap polygon.ex{fill:rgba(239,68,68,.25);stroke:var(--err);stroke-dasharray:3 2}
+.sklist{display:flex;flex-direction:column;gap:.5rem;max-height:60vh;overflow:auto}
+.skitem{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border-radius:.7rem;padding:.75rem .9rem;text-align:left}
+.skitem.ex{opacity:.5;text-decoration:line-through}
+.pidr{display:grid;grid-template-columns:6rem 1fr 8rem;gap:.7rem;align-items:center;margin:.6rem 0}
+.pidr input{margin:0}
+.camv{width:100%;height:100%;object-fit:contain;background:#000;border-radius:var(--r)}
+.empty{color:var(--sub);text-align:center;padding:3rem}
+@media (orientation:portrait){
+  html{font-size:clamp(10px,1.9vw,20px)}
+  #app{flex-direction:column-reverse}
+  #side{width:auto;height:4.2rem;flex-direction:row}
+  .page.on{overflow:auto}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="gFrame" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b3e43"/><stop offset="1" stop-color="#1f2124"/></linearGradient>
+  <linearGradient id="gPlate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a5244"/><stop offset="1" stop-color="#2f2a23"/></linearGradient>
+  <linearGradient id="gHead" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd3d7"/></linearGradient>
+  <radialGradient id="gHot"><stop offset="0" stop-color="#ffd27a"/><stop offset=".45" stop-color="#ff7a1a" stop-opacity=".8"/><stop offset="1" stop-color="#ff4d00" stop-opacity="0"/></radialGradient>
+  <linearGradient id="gCone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2cc" stop-opacity=".28"/><stop offset="1" stop-color="#fff2cc" stop-opacity="0"/></linearGradient>
+  <filter id="fGlow" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs></svg>
+
+<div id="app">
+  <nav id="side">
+    <button class="nav on" data-a="go" data-v="home" aria-label="Start"></button>
+    <button class="nav" data-a="go" data-v="control" aria-label="Steuerung"></button>
+    <button class="nav" data-a="go" data-v="filament" aria-label="Filament"></button>
+    <button class="nav" data-a="go" data-v="settings" aria-label="Kalibrierung & Einstellungen"><span class="badge" id="b-set" hidden>!</span></button>
+    <button class="nav" data-a="go" data-v="msg" aria-label="Meldungen"><span class="badge" id="b-msg" hidden>1</span></button>
+  </nav>
+  <main>
+    <!-- HOME -->
+    <section class="page on" id="pg-home">
+      <div class="home-idle" id="h-idle">
+        <div class="card hero">
+          <div class="hero-img" id="hero-img"></div>
+          <div class="hero-txt"><div class="greet">Willkommen! Lust auf das nächste<br>3D-Druck-Abenteuer?</div><div class="sub pname" id="pname"></div></div>
+        </div>
+        <button class="card tile-files tap" data-a="files"><span id="ic-files"></span>Druckdateien</button>
+        <div class="card stat">
+          <div class="tap" id="st-psu-w" data-a="psu" hidden><span id="st-psu-i"></span><span id="st-psu">–</span></div>
+          <div><span id="st-noz-i"></span><span id="st-noz">–</span></div>
+          <div><span id="st-bed-i"></span><span id="st-bed">–</span></div>
+          <div><span id="st-fil-i"></span><span id="st-fil">–</span></div>
+          <div><span id="st-con-i"></span><span id="st-con">–</span></div>
+        </div>
+      </div>
+      <div class="home-print" id="h-print" hidden>
+        <div class="card thumbc">
+          <button class="files-link tap" data-a="files">Dateien ›</button>
+          <img id="p-thumb" alt="" hidden><div class="ph-thumb" id="p-noth"></div>
+          <div class="fname" id="p-name"></div>
+        </div>
+        <div class="card printer">
+          <button class="cam-btn tap" id="cam-tg" data-a="camToggle" aria-label="Kamera"></button>
+          <div class="pr-img" id="pr-img"></div>
+          <img id="pr-cam" alt="" hidden>
+          <div class="extr">
+            <div class="spoolm"><i id="p-sp"></i></div>
+            <div id="p-mat" style="font-weight:600"></div>
+            <span class="pill" id="p-noz2"></span>
+            <span class="pill" id="p-bed2"></span>
+          </div>
+        </div>
+        <div class="pbar-row">
+          <div class="card prog">
+            <div class="prog-top"><span class="pct" id="p-pct">0%</span><span class="lay" id="p-lay"></span></div>
+            <div class="bar"><i id="p-bar"></i></div>
+            <div class="pstate" id="p-state">–</div>
+          </div>
+          <button class="card bigbtn tap" id="b-skip" data-a="skip"></button>
+          <button class="card bigbtn tap" id="b-pause" data-a="pause"></button>
+          <button class="card bigbtn stop tap" id="b-stop" data-a="stop"></button>
+          <button class="card bigbtn tune tap" id="b-tune" data-a="tune"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEUERUNG -->
+    <section class="page" id="pg-control">
+      <button class="card ctl tap" style="grid-area:fan" data-a="fan"><span class="ico" data-ic="fan"></span><span><small>Lüfter</small><b id="v-fan">–</b></span></button>
+      <button class="card ctl tap" style="grid-area:spd" data-a="spd"><span class="ico" data-ic="gauge"></span><span><small>Geschwindigkeit</small><b id="v-spd">–</b></span></button>
+      <button class="card ctl tap" style="grid-area:mot" data-a="mot"><span class="ico" data-ic="move"></span><span><small>Bewegung</small><b id="v-mot">–</b></span></button>
+      <button class="card ctl tall tap" id="c-noz" style="grid-area:noz" data-a="noz"><span class="hd"><span class="ico" data-ic="nozzle"></span><small>Düse &amp; Extruder</small></span><span class="bd"><span data-ic="hotend"></span><b id="v-noz">–</b></span></button>
+      <button class="card ctl tap" id="c-mcu" style="grid-area:mcu" data-a="mcu"><span class="ico" data-ic="chip"></span><span><small id="v-mcu-n">Elektronik</small><b id="v-mcu">–</b></span></button>
+      <button class="card ctl tap" id="c-bed" style="grid-area:bed" data-a="bed"><span class="ico" data-ic="bedheat"></span><span><small>Heizbett</small><b id="v-bed">–</b></span></button>
+      <div class="ctl-img" id="ctl-img"><div class="sws">
+        <button class="card light tap" id="c-psu" data-a="psu" hidden><span class="lt"><span data-ic="power"></span>Netzteil</span><span class="sw" id="sw-psu"></span></button>
+        <button class="card light tap" id="c-light" data-a="light" hidden><span class="lt"><span data-ic="bulb"></span>Licht</span><span class="sw" id="sw-light"></span></button>
+      </div></div>
+    </section>
+
+    <!-- FILAMENT -->
+    <section class="page" id="pg-filament">
+      <div class="card fil-left in">
+        <div class="bigspool"><i id="f-sp"></i></div>
+        <div class="fmat" id="f-mat">PLA</div>
+        <div class="sub" id="f-tmp"></div>
+        <span class="pill" id="f-sens"></span>
+      </div>
+      <div class="card fil-right in">
+        <div class="sub">Material</div><div class="chips" id="mat-chips"></div>
+        <div class="sub">Farbe (Anzeige)</div><div class="swatches" id="swatches"></div>
+        <div class="ftemp">
+          <span class="pill" id="f-noz"></span>
+          <button class="btn" data-a="fHeat">Vorheizen</button>
+          <button class="btn" data-a="fCool">Abkühlen</button>
+        </div>
+      </div>
+      <div class="fil-actions">
+        <button class="card act tap" data-a="fUnload"><span data-ic="up"></span>Entladen</button>
+        <button class="card act tap" data-a="fLoad"><span data-ic="down"></span>Laden</button>
+        <button class="card act tap" data-a="fChange"><span data-ic="swap"></span>Wechseln (M600)</button>
+      </div>
+    </section>
+
+    <!-- KALIBRIERUNG & EINSTELLUNGEN -->
+    <section class="page" id="pg-settings"><div class="tiles" id="tiles"></div></section>
+
+    <!-- MELDUNGEN / KONSOLE -->
+    <section class="page" id="pg-msg">
+      <div class="card con">
+        <div class="con-head"><b>Meldungen &amp; Konsole</b><button class="chip tap" data-a="logClear">Leeren</button></div>
+        <div class="log" id="log"></div>
+        <div class="quick" id="quick"></div>
+        <div class="con-in"><input type="text" id="gin" placeholder="G-Code eingeben…" autocomplete="off" autocapitalize="characters"><button class="btn pri" data-a="gsend">Senden</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<button class="chiptop tap" id="demo-chip" data-a="tile" data-v="conn" hidden>DEMO · Drucker verbinden</button>
+<button class="chiptop tap" id="po-chip" data-a="poCancel" hidden></button>
+<button class="chiptop tap" id="save-chip" data-a="saveCfg" hidden>Ungespeicherte Kalibrierung · Speichern</button>
+
+<div id="conn" hidden><div class="box">
+  <div class="spin" id="cn-spin"></div>
+  <h3 id="cn-t">Verbinde…</h3>
+  <p class="sub" id="cn-m"></p>
+  <button class="btn pri big" id="cn-psu" data-a="psuOn" hidden>Drucker einschalten</button>
+  <button class="btn big" id="cn-light" data-a="light" hidden>Licht <span id="cn-lv"></span></button>
+  <div class="row"><button class="btn" data-a="fwRestart">Firmware-Neustart</button><button class="btn" data-a="klRestart">Klipper-Neustart</button></div>
+  <div class="row"><button class="btn ghost" data-a="tile" data-v="conn">Einstellungen</button><button class="btn ghost" data-a="demo">Demo-Modus</button></div>
+</div></div>
+<div id="ov" hidden></div>
+<div id="modal" hidden><div class="mbox" id="mbox"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ================= Utils ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r0=v=>Math.round(+v||0);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,+v||0));
+const f2=v=>(v==null||isNaN(v))?'–':(+v).toFixed(2);
+const f3=v=>(v==null||isNaN(v))?'–':(+v).toFixed(3);
+function set(id,t){const e=document.getElementById(id);if(e&&e.textContent!==String(t))e.textContent=t}
+function fmtDur(s){s=Math.max(0,Math.round(s||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h}h${String(m).padStart(2,'0')}m`:`${m}m`}
+function tm(t){const d=new Date(t);return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+function baseName(p){return String(p).split('/').pop().replace(/\.(gcode|gco|g)$/i,'')}
+function fmtAgo(s){const d=new Date(s*1000);return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}
+
+/* ================= Icons ================= */
+const IC={
+ home:'<path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="currentColor" stroke="none"/>',
+ control:'<path d="M7 3v18M17 3v18"/><rect x="3.5" y="13" width="7" height="4.5" rx="1.2" fill="currentColor"/><rect x="13.5" y="6" width="7" height="4.5" rx="1.2" fill="currentColor"/>',
+ spool:'<ellipse cx="8" cy="12" rx="3.6" ry="8.5" fill="currentColor"/><path d="M8 3.5h8M8 20.5h8"/><ellipse cx="16" cy="12" rx="3.6" ry="8.5"/>',
+ hex:'<path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.3" fill="#2a2c2f" stroke="none"/>',
+ chat:'<path d="M4 4.5h16a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-9l-5 4v-4H4A1.5 1.5 0 0 1 2.5 16V6A1.5 1.5 0 0 1 4 4.5z" fill="currentColor" stroke="none"/><circle cx="8" cy="11" r="1.3" fill="#2a2c2f" stroke="none"/><circle cx="12" cy="11" r="1.3" fill="#2a2c2f" stroke="none"/><circle cx="16" cy="11" r="1.3" fill="#2a2c2f" stroke="none"/>',
+ fan:'<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C11 6 12.5 3 15 3s2.5 4.5-3 7.2M13.8 12c4.2-1 7.2.5 7.2 3s-4.5 2.5-7.2-3M12 13.8c1 4.2-.5 7.2-3 7.2s-2.5-4.5 3-7.2M10.2 12C6 13 3 11.5 3 9s4.5-2.5 7.2 3"/>',
+ gauge:'<path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.5-5.5"/><circle cx="12" cy="17" r="1.3" fill="currentColor"/>',
+ move:'<path d="M12 2.5v19M2.5 12h19M12 2.5 9 5.5M12 2.5l3 3M12 21.5l-3-3M12 21.5l3-3M2.5 12l3-3M2.5 12l3 3M21.5 12l-3-3M21.5 12l-3 3"/>',
+ nozzle:'<path d="M7 3h10v7H7zM9.5 10h5l-1.6 4.5h-1.8z"/><path d="M8 19.5l1-1.5M12 21v-2.2M16 19.5l-1-1.5"/>',
+ hotend:'<rect x="6" y="2.5" width="12" height="11" rx="3"/><circle cx="12" cy="8" r="2.6"/><path d="M10 13.5h4l-1 4h-2z"/><path d="M8.5 21h7"/>',
+ chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".5"/><path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5"/>',
+ bedheat:'<path d="M3 20.5h18M8 16c-1.6-2 1.6-4 0-6s1.6-4 0-6M12 16c-1.6-2 1.6-4 0-6s1.6-4 0-6M16 16c-1.6-2 1.6-4 0-6s1.6-4 0-6"/>',
+ bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8V16h7.2v-2.2A6 6 0 0 0 12 3z"/><path d="M12 3V1M4.2 5.2l-1.4-1.4M19.8 5.2l1.4-1.4"/>',
+ pause:'<path d="M8.5 5v14M15.5 5v14" stroke-width="3"/>',
+ play:'<path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/>',
+ stop:'<rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" stroke="none"/>',
+ skip:'<path d="M5 11a7 7 0 0 1 12.5-4.3L19 8.5M19.5 4v4.5H15"/><rect x="4" y="15" width="4.2" height="4.2" rx=".8"/><rect x="9.9" y="15" width="4.2" height="4.2" rx=".8"/><rect x="15.8" y="15" width="4.2" height="4.2" rx=".8"/>',
+ tune:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+ cube:'<path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z"/><path d="M3.5 7.3 12 12l8.5-4.7M12 12v9.5"/>',
+ wifi:'<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.3" r="1.2" fill="currentColor"/>',
+ camera:'<path d="M3 7.5h4l2-3h6l2 3h4V19H3z"/><circle cx="12" cy="13" r="3.6"/>',
+ probe:'<path d="M12 2.5v12M8 10.5l4 4 4-4M4 20.5h16"/>',
+ mesh:'<path d="M3 8l9-4.5L21 8l-9 4.5z"/><path d="M3 12.5l9 4.5 9-4.5M3 17l9 4.5 9-4.5"/>',
+ level:'<rect x="2.5" y="9" width="19" height="6" rx="1.5"/><circle cx="12" cy="12" r="1.5"/><path d="M6 15v4M18 15v4M6 5v4M18 5v4"/>',
+ flame:'<path d="M12 21.5c4 0 7-3 7-7 0-5-5-7-5.5-12-3 2-4.2 5-4 7.5-1-1-2-2.2-2-4-2 2-2.5 5-2.5 8.5 0 4 3 7 7 7z"/>',
+ power:'<path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/>',
+ motoroff:'<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+ estop:'<path d="M8 2.5h8l5.5 5.5v8L16 21.5H8L2.5 16V8z"/><path d="M12 7v6M12 16.5v.5"/>',
+ save:'<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5.5h7.5V3M8 21v-6.5h8V21"/>',
+ gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+ info:'<circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.5"/>',
+ sensor:'<path d="M4 12h5l2-5 2 10 2-5h5"/>',
+ back:'<path d="M15 4l-8 8 8 8"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19.5 7"/>',
+ thermo:'<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>',
+ up:'<path d="M12 20V5M6 11l6-6 6 6"/>', down:'<path d="M12 4v15M6 13l6 6 6-6"/>',
+ left:'<path d="M15 5l-7 7 7 7"/>', right:'<path d="M9 5l7 7-7 7"/>',
+ swap:'<path d="M4 8h14l-4-4M20 16H6l4 4"/>',
+ reprint:'<path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 3.5V9h-5.5M20 12a8 8 0 0 1-14 5.3L4 15M4 20.5V15h5.5"/>',
+ homeax:'<path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z"/>',
+ klipper:'<path d="M5 3l6 9-6 9M13 3l6 9-6 9"/>',
+ plug:'<path d="M9 2.5v5M15 2.5v5M6 7.5h12v4a6 6 0 0 1-12 0zM12 17.5v4"/>',
+ switches:'<rect x="2.5" y="5" width="19" height="6" rx="3"/><circle cx="18.5" cy="8" r="1.6" fill="currentColor"/><rect x="2.5" y="13" width="19" height="6" rx="3"/><circle cx="5.5" cy="16" r="1.6"/>',
+};
+const ic=(n,cls='')=>`<svg class="i ${cls}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
+
+/* ================= Config ================= */
+const DEF={name:'Ender-3 S1',host:'',port:7125,webcam:'',lightSrc:'auto',lightRef:'',lightOnG:'',lightOffG:'',psuSrc:'auto',psuRef:'',psuAutoOff:false,extras:'',haUrl:'',haToken:'',demo:false,material:'PLA',filamentColor:'#e9e9e9',corners:[[20,29],[195,29],[195,198],[20,198]]};
+let CFG=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('s1touch')||'{}')}catch(e){}return Object.assign({},DEF,window.S1_CONFIG||{},s)})();
+(()=>{const q=new URLSearchParams(location.search);if(q.get('host'))CFG.host=q.get('host');if(q.get('port'))CFG.port=q.get('port');if(q.get('demo'))CFG.demo=q.get('demo')==='1'})();
+function saveCfgLocal(){try{localStorage.setItem('s1touch',JSON.stringify(CFG))}catch(e){}}
+const MATS={PLA:[205,60],PETG:[235,75],ABS:[245,100],ASA:[250,100],TPU:[225,50]};
+const COLORS=['#e9e9e9','#202124','#d93a3a','#f08a24','#f2d43a','#45b35a','#2f7de1','#7b4fd6','#e86fb0','#8a6a4a','#9aa0a6','#14b8a6'];
+
+/* ================= State ================= */
+const ST={};                        // Klipper-Objekte (live)
+const KL={state:'',msg:'',settings:{},meta:null,metaFile:'',objects:[]};
+let dismissed='',CAM=false,JS=10,EL=10,ZS=0.05,TM=null,TI=0,prevState='';
+const live=()=>!CFG.demo&&!!CFG.host;
+const homed=a=>[...a].every(c=>((ST.toolhead||{}).homed_axes||'').includes(c));
+const isPrinting=()=>['printing','paused'].includes((ST.print_stats||{}).state);
+
+/* ================= Moonraker ================= */
+const M={ws:null,id:1,pend:{},ok:false,ready:false,gen:0,t:0,
+ base(){const s=location.protocol==='https:';if(CFG.host==='proxy')return{ws:(s?'wss://':'ws://')+location.host,http:location.origin};const p=CFG.port?':'+CFG.port:'';return{ws:(s?'wss://':'ws://')+CFG.host+p,http:(s?'https://':'http://')+CFG.host+p}},
+ connect(){
+  const g=++this.gen;clearTimeout(this.t);
+  if(this.ws){try{this.ws.onclose=null;this.ws.close()}catch(e){}this.ws=null}
+  this.ok=false;this.ready=false;PWRL=[];for(const k in PWR)delete PWR[k];
+  if(!live()){Demo.start();loadPower();pollHA();schedule();return}
+  pollHA();
+  Demo.stop();
+  let ws;try{ws=this.ws=new WebSocket(this.base().ws+'/websocket')}catch(e){this.t=setTimeout(()=>this.connect(),4000);return}
+  ws.onopen=async()=>{if(g!==this.gen)return;this.ok=true;schedule();
+    try{await this.call('server.connection.identify',{client_name:'S1 Touch',version:'1.1.0',type:'display',url:location.href})}catch(e){}
+    loadPower();this.init()};
+  ws.onclose=()=>{if(g!==this.gen)return;this.ok=false;this.ready=false;schedule();this.t=setTimeout(()=>this.connect(),3000)};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+   if(m.id&&this.pend[m.id]){const p=this.pend[m.id];delete this.pend[m.id];m.error?p.rej(m.error):p.res(m.result);return}
+   const P=m.params||[];
+   switch(m.method){
+    case 'notify_status_update':merge(P[0]);break;
+    case 'notify_gcode_response':logLine(P[0]);break;
+    case 'notify_klippy_ready':this.init();break;
+    case 'notify_power_changed':{const d=P[0];if(d&&d.device){PWR[d.device]=d.status;schedule()}break}
+    case 'notify_klippy_shutdown':case 'notify_klippy_disconnected':this.ready=false;KL.state='startup';schedule();clearTimeout(this.t);this.t=setTimeout(()=>this.init(),2000);break;
+   }};
+ },
+ call(method,params={}){return new Promise((res,rej)=>{
+  if(!this.ws||this.ws.readyState!==1)return rej({message:'Nicht mit Moonraker verbunden'});
+  const id=this.id++;this.pend[id]={res,rej};
+  this.ws.send(JSON.stringify({jsonrpc:'2.0',method,params,id}));
+  setTimeout(()=>{if(this.pend[id]){delete this.pend[id];rej({message:'Zeitüberschreitung'})}},method==='printer.gcode.script'?1800000:20000)})},
+ async init(){
+  clearTimeout(this.t);
+  try{
+   const info=await this.call('server.info');KL.state=info.klippy_state;KL.msg='';
+   if(info.klippy_state!=='ready'){try{KL.msg=(await this.call('printer.info')).state_message}catch(e){}
+     this.ready=false;schedule();this.t=setTimeout(()=>this.init(),2500);return}
+   const ol=(await this.call('printer.objects.list')).objects;KL.objects=ol;
+   const want=['webhooks','print_stats','virtual_sdcard','display_status','extruder','heater_bed','fan','gcode_move','toolhead','idle_timeout','bed_mesh','probe','manual_probe','exclude_object','screws_tilt_adjust','pause_resume'];
+   const objs={};want.filter(o=>ol.includes(o)).forEach(o=>objs[o]=null);
+   ol.filter(o=>/^(temperature_sensor|temperature_host|filament_switch_sensor|filament_motion_sensor|output_pin|led|neopixel) /.test(o)).forEach(o=>objs[o]=null);
+   objs.configfile=['save_config_pending'];
+   const r=await this.call('printer.objects.subscribe',{objects:objs});
+   for(const k in ST)delete ST[k];merge(r.status);
+   const cf=await this.call('printer.objects.query',{objects:{configfile:['settings']}});
+   KL.settings=cf.status.configfile.settings||{};
+   this.ready=true;KL.metaFile='';loadLog();schedule();
+  }catch(e){this.ready=false;schedule();this.t=setTimeout(()=>this.init(),3000)}
+ }
+};
+function api(m,p){return live()?M.call(m,p):Demo.api(m,p||{})}
+function G(s){logLine('> '+s.replace(/\n/g,' ⏎ '),'cmd');
+  const pr=live()?M.call('printer.gcode.script',{script:s}):Demo.gcode(s);
+  return pr.catch(e=>{toast((e&&e.message)||'Fehler','err');throw e})}
+function merge(o){if(!o)return;for(const k in o){const v=o[k];if(v&&typeof v==='object'&&!Array.isArray(v)){ST[k]=Object.assign(ST[k]||{},v)}else ST[k]=v}schedule()}
+function loadMeta(fn){KL.metaFile=fn;KL.meta=null;api('server.files.metadata',{filename:fn}).then(m=>{if(KL.metaFile===fn){KL.meta=m;schedule()}}).catch(()=>{})}
+function thumbUrl(m){if(!m)return'';if(m._thumb)return m._thumb;if(!m.thumbnails||!m.thumbnails.length)return'';
+ const t=m.thumbnails.reduce((a,b)=>b.width>a.width?b:a);const fn=m.filename||'';const dir=fn.includes('/')?fn.slice(0,fn.lastIndexOf('/')+1):'';
+ return M.base().http+'/server/files/gcodes/'+(dir+t.relative_path).split('/').map(encodeURIComponent).join('/')}
+
+/* ================= Log ================= */
+const LOG=[];let LOGV=0,ERRN=0;
+function logLine(m,type){if(m==null)return;m=String(m);if(type!=='cmd'&&/^\s*ok\s*$/i.test(m))return;
+ const err=type!=='cmd'&&(/^!!/.test(m)||/^error/i.test(m));
+ LOG.push({t:Date.now(),m,type:type||(err?'err':'resp')});if(LOG.length>500)LOG.splice(0,LOG.length-500);LOGV++;
+ if(err){if(!$('#pg-msg').classList.contains('on'))ERRN++;toast(m.replace(/^!!\s*/,''),'err')}
+ schedule()}
+function loadLog(){api('server.gcode_store',{count:150}).then(r=>{LOG.length=0;(r.gcode_store||[]).forEach(x=>LOG.push({t:x.time*1000,m:x.message,type:x.type==='command'?'cmd':(/^!!/.test(x.message)?'err':'resp')}));LOGV++;schedule()}).catch(()=>{})}
+function renderLog(){const el=$('#log');if(el._v===LOGV)return;el._v=LOGV;const bottom=el.scrollHeight-el.scrollTop-el.clientHeight<60;
+ el.innerHTML=LOG.slice(-250).map(l=>`<div class="ll ${l.type}"><span>${tm(l.t)}</span>${esc(l.m)}</div>`).join('')||'<div class="empty">Keine Meldungen</div>';
+ if(bottom||!el._i){el.scrollTop=el.scrollHeight;el._i=1}}
+
+/* ================= Toast / Modal / Overlay ================= */
+let lastToast='',lastToastT=0;
+function toast(m,cls){if(m===lastToast&&Date.now()-lastToastT<2500)return;lastToast=m;lastToastT=Date.now();
+ const d=document.createElement('div');d.className='tst '+(cls||'');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),cls==='err'?5000:2800)}
+let mR=null,CB=null,JOB=null,ovR=null;
+function modal(html,r,wide,locked){$('#mbox').className='mbox'+(wide?' wide':'');$('#mbox').innerHTML=html;const m=$('#modal');m.hidden=false;m.dataset.locked=locked?'1':'';mR=r||null;if(mR)mR()}
+function closeModal(){$('#modal').hidden=true;$('#mbox').innerHTML='';mR=null}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal'&&!e.currentTarget.dataset.locked)closeModal()});
+function ovOpen(title,body,r){$('#ov').innerHTML=`<div class="ov-head"><button class="back tap" data-a="ovClose">${ic('back')}</button><h2>${title}</h2></div><div class="ov-body" id="ov-b">${body}</div>`;$('#ov').hidden=false;ovR=r||null;if(ovR)ovR()}
+function ovClose(){$('#ov').hidden=true;$('#ov').innerHTML='';ovR=null}
+function confirmBox(text,ok,cb,danger){CB=cb;modal(`<h3>${danger?'Achtung':'Bestätigen'}</h3><p class="sub" style="font-size:1rem">${text}</p><div class="row"><button class="btn" data-a="mclose">Abbrechen</button><button class="btn ${danger?'red':'pri'}" data-a="cfOk">${ok}</button></div>`)}
+let NP=null;
+function numpad(title,cur,presets,max,cb){NP={v:'',cb,max};modal(`<h3>${title}</h3><div class="np-disp" id="np-d">${r0(cur)}°C</div><div class="chips">${presets.map(p=>`<button class="chip tap" data-a="npPre" data-v="${p}">${p?p+'°C':'Aus'}</button>`).join('')}</div><div class="np-keys">${[1,2,3,4,5,6,7,8,9,'C',0,'⌫'].map(k=>`<button class="key tap" data-a="npKey" data-v="${k}">${k}</button>`).join('')}</div><div class="row"><button class="btn" data-a="mclose">Abbrechen</button><button class="btn pri" data-a="npOk">Übernehmen</button></div>`)}
+function job(title,script,o={}){const j=JOB={o,done:false,err:null,logAt:LOG.length+1};
+ modal(`<div class="job"><div id="j-ic"><div class="spin"></div></div><h3 id="j-t">${title}</h3><div class="sub" id="j-msg">${o.msg||''}</div>
+ <div id="j-heat" ${o.heater?'':'hidden'}><div class="kv"><span>${o.heater==='heater_bed'?'Heizbett':'Düse'}</span><b id="j-hv"></b></div><div class="bar"><i id="j-bar"></i></div></div>
+ <div class="jlog mono" id="j-log"></div><div class="row" id="j-btns"><button class="btn" data-a="mclose">Ausblenden</button></div></div>`,jobRender,false,true);
+ G(script).then(()=>{j.done=true;if(o.onDone)o.onDone();schedule()}).catch(e=>{j.err=(e&&e.message)||'Fehler';schedule()})}
+function jobRender(){const j=JOB;if(!j||!$('#j-t'))return;
+ if(j.o.heater){const h=ST[j.o.heater]||{};set('j-hv',`${r0(h.temperature)} / ${r0(h.target)} °C`);$('#j-bar').style.width=(h.target?Math.min(100,h.temperature/h.target*100):0)+'%'}
+ const ln=LOG.slice(j.logAt).filter(l=>l.type!=='cmd').slice(-3).map(l=>esc(l.m)).join('<br>');const jl=$('#j-log');if(jl._v!==ln){jl._v=ln;jl.innerHTML=ln}
+ const k=j.err?'e':j.done?'d':'r',b=$('#j-btns');if(b._k===k)return;b._k=k;
+ if(k==='d'){$('#j-ic').innerHTML=`<div class="okc">${ic('check')}</div>`;set('j-t',j.o.doneTitle||'Fertig');
+   b.innerHTML=j.o.doneBtn?`<button class="btn" data-a="mclose">Schließen</button><button class="btn pri" data-a="jobBtn">${j.o.doneBtn.label}</button>`:`<button class="btn pri" data-a="mclose">OK</button>`;
+   if(j.o.autoClose)setTimeout(()=>{if(JOB===j&&$('#j-t'))closeModal()},500)}
+ if(k==='e'){$('#j-ic').innerHTML='<div class="errc">!</div>';set('j-t','Fehlgeschlagen');set('j-msg',j.err);b.innerHTML='<button class="btn" data-a="mclose">Schließen</button>'}}
+function dyn(el,key,html){if(!el)return false;if(el._k!==key){el._k=key;el.innerHTML=html;return true}return false}
+
+/* ================= Ender 3 S1 Illustration ================= */
+function enderSVG(o={}){
+ const fr='fill="url(#gFrame)" stroke="rgba(255,255,255,.17)"';
+ return `<svg class="ender" viewBox="0 -62 420 404" preserveAspectRatio="xMidYMid meet">
+ ${o.lead?'<path class="leadp ld-noz"/><path class="leadp ld-brd"/><path class="leadp ld-bed"/><circle class="ldot ld-noz-d" r="3"/><circle class="ldot ld-brd-d" r="3"/><circle class="ldot ld-bed-d" r="3"/>':''}
+ <polygon class="cone" points="84,-16 336,-16 398,300 22,300" fill="url(#gCone)"/>
+ <g><rect x="238" y="-6" width="24" height="10" rx="2" fill="#26282b"/><circle cx="250" cy="-32" r="29" fill="#18191b" stroke="rgba(255,255,255,.25)"/><circle class="fil" cx="250" cy="-32" r="21"/><circle cx="250" cy="-32" r="7.5" fill="#0e0f10" stroke="rgba(255,255,255,.3)"/></g>
+ <rect x="96" y="0" width="18" height="300" ${fr}/><line x1="105" y1="6" x2="105" y2="296" stroke="rgba(0,0,0,.45)" stroke-width="2"/>
+ <rect x="306" y="0" width="18" height="300" ${fr}/><line x1="315" y1="6" x2="315" y2="296" stroke="rgba(0,0,0,.45)" stroke-width="2"/>
+ <rect x="86" y="-8" width="248" height="16" rx="2" ${fr}/>
+ <path d="M92 -8 86 -16M328 -8l6 -8" stroke="#26282b" stroke-width="6"/>
+ <rect x="70" y="-27" width="280" height="11" rx="5.5" fill="#1f2124" stroke="rgba(255,255,255,.2)"/><rect class="lamp" x="78" y="-23.5" width="264" height="4" rx="2"/>
+ <path class="filp" fill="none" stroke-width="1.6" stroke="#e9e9e9"/>
+ <path d="M40 300H380L402 336H18Z" ${fr}/><path d="M58 318H362" stroke="rgba(255,255,255,.07)"/>
+ <rect x="196" y="282" width="28" height="22" fill="#1b1c1f"/>
+ <g><rect x="332" y="305" width="52" height="25" rx="4" fill="#0d0e0f" stroke="rgba(255,255,255,.28)"/><rect x="336" y="308.5" width="44" height="18" rx="2" fill="#24292d"/><rect x="338.5" y="311" width="4" height="13" rx="1" fill="#3dbb61"/><rect x="346" y="311" width="30" height="5" rx="1" fill="#41464c"/><rect x="346" y="318" width="20" height="5" rx="1" fill="#41464c"/></g>
+ <g class="bedG">
+  <path d="M66 280H354L364 292H56Z" fill="#1b1c1f"/>
+  <path d="M60 256H360L384 282H36Z" fill="url(#gPlate)" stroke="rgba(255,255,255,.38)"/>
+  <path class="bedheat" d="M60 256H360L384 282H36Z" fill="#ff6a1a" opacity="0"/>
+  <path d="M36 282H384V286.5H36Z" fill="#131415"/>
+  <ellipse cx="62" cy="294" rx="11" ry="4.5" fill="#0b0b0c" stroke="rgba(255,255,255,.15)"/><ellipse cx="358" cy="294" rx="11" ry="4.5" fill="#0b0b0c" stroke="rgba(255,255,255,.15)"/>
+  ${o.badges?'<g><rect x="164" y="261" width="92" height="17" rx="8.5" fill="rgba(0,0,0,.62)"/><text class="t-bed" x="210" y="273.5" text-anchor="middle">–</text></g>':''}
+ </g>
+ <g class="gantry" transform="translate(0 190)">
+  <rect x="78" y="0" width="264" height="14" rx="2" ${fr}/>
+  <rect x="66" y="-7" width="42" height="28" rx="5" fill="#3d4046" stroke="rgba(255,255,255,.18)"/>
+  <rect x="312" y="-7" width="42" height="28" rx="5" fill="#3d4046" stroke="rgba(255,255,255,.18)"/>
+  <g class="head" transform="translate(210 0)">
+   <rect x="-35" y="16" width="9" height="22" rx="2" fill="#1e1f21" stroke="rgba(255,255,255,.22)"/><rect x="-33" y="38" width="5" height="4" fill="#c2c6cb"/>
+   <rect x="-24" y="-20" width="48" height="52" rx="9" fill="url(#gHead)" stroke="rgba(0,0,0,.3)"/>
+   <rect x="-17" y="-15" width="20" height="3" rx="1.5" fill="#55595e"/>
+   <circle cx="0" cy="5" r="12.5" fill="#1a1a1b" stroke="#8b8f94"/><circle cx="0" cy="5" r="5" fill="#2c2d2f"/>
+   <g fill="#b3b7bc"><circle cx="15" cy="19" r="1.5"/><circle cx="19" cy="23" r="1.5"/><circle cx="15" cy="27" r="1.5"/><circle cx="19" cy="15" r="1.5"/><circle cx="11" cy="23" r="1.5"/></g>
+   <rect x="-7" y="32" width="14" height="6" fill="#8d9298"/><path d="M-4 38H4L1.6 45H-1.6Z" fill="#d6a845"/>
+   <circle class="glow" cx="0" cy="46" r="9" fill="url(#gHot)" opacity="0"/>
+   ${o.badges?'<g><rect x="28" y="-36" width="66" height="17" rx="8.5" fill="rgba(0,0,0,.62)"/><text class="t-noz" x="61" y="-23.5" text-anchor="middle">–</text></g>':''}
+  </g>
+ </g>
+</svg>`}
+function updEnder(){
+ const p=(ST.toolhead&&ST.toolhead.position)||[117,117,40];
+ const x=clamp(p[0],0,235),y=clamp(p[1],0,235),z=clamp(p[2],0,270);
+ const hx=140+x/235*140,gy=223-z*0.78,by=(117-y)*0.06;
+ const ex=ST.extruder||{},bd=ST.heater_bed||{};
+ const nh=clamp((ex.temperature-45)/160,0,1),bh=clamp((bd.temperature-30)/60,0,1)*0.42,L=swState(lightCfg())===true,col=CFG.filamentColor;
+ document.querySelectorAll('svg.ender').forEach(s=>{if(!s.getClientRects().length)return;
+  s.querySelector('.gantry').setAttribute('transform',`translate(0 ${gy.toFixed(1)})`);
+  s.querySelector('.head').setAttribute('transform',`translate(${hx.toFixed(1)} 0)`);
+  s.querySelector('.bedG').setAttribute('transform',`translate(0 ${by.toFixed(1)})`);
+  s.querySelector('.glow').setAttribute('opacity',nh.toFixed(2));
+  s.querySelector('.bedheat').setAttribute('opacity',bh.toFixed(2));
+  s.classList.toggle('lit',L);
+  s.querySelector('.fil').style.fill=col;
+  const fp=s.querySelector('.filp');fp.setAttribute('stroke',col);fp.setAttribute('d',`M250 -3C250 40 ${hx.toFixed(1)} ${(gy-80).toFixed(1)} ${hx.toFixed(1)} ${(gy-20).toFixed(1)}`);
+  const tn=s.querySelector('.t-noz');if(tn)tn.textContent=r0(ex.temperature)+' °C';
+  const tb=s.querySelector('.t-bed');if(tb)tb.textContent=r0(bd.temperature)+' °C';});
+ leaders(hx,gy,by)}
+function leaders(hx,gy,by){const sv=$('#ctl-img svg');if(!sv||!sv.getClientRects().length)return;const m=sv.getScreenCTM();if(!m)return;
+ const inv=m.inverse(),pt=sv.createSVGPoint();
+ [['#c-noz','ld-noz',hx,gy+20],['#c-mcu','ld-brd',96,318],['#c-bed','ld-bed',92,268+by]].forEach(([c,cl,tx,ty])=>{
+  const r=$(c).getBoundingClientRect();pt.x=r.right;pt.y=r.top+r.height/2;const a=pt.matrixTransform(inv);const mx=a.x+(tx-a.x)*0.4;
+  sv.querySelector('.'+cl).setAttribute('d',`M${a.x.toFixed(1)} ${a.y.toFixed(1)}H${mx.toFixed(1)}L${tx.toFixed(1)} ${ty.toFixed(1)}`);
+  const d=sv.querySelector('.'+cl+'-d');d.setAttribute('cx',tx.toFixed(1));d.setAttribute('cy',ty.toFixed(1))})}
+
+/* ================= Schalter: Klipper · Moonraker [power] · Home Assistant ================= */
+const PWR={};let PWRL=[];               // Moonraker-Power-Geräte + Status
+const HA={};let HAERR='',haT=0,HAENT=[]; // Home-Assistant-Zustände
+let PO=false;                            // Netzteil aus, sobald abgekühlt
+const PAT={light:/light|licht|lamp|led|case/i,psu:/printer|drucker|psu|netzteil|power|steckdose|plug|ender/i};
+function loadPower(){api('machine.device_power.devices').then(r=>{PWRL=(r&&r.devices)||[];PWRL.forEach(d=>PWR[d.device]=d.status);schedule()}).catch(()=>{PWRL=[]})}
+function haBase(){const u=(CFG.haUrl||'').trim();if(!u)return'';return u==='proxy'?location.origin+'/ha':u.replace(/\/+$/,'')}
+async function haFetch(path,body){
+ if(!live())return Demo.ha(path,body);
+ const b=haBase();if(!b)throw new Error('Home Assistant ist nicht eingerichtet (Einstellungen)');
+ const h={'Content-Type':'application/json'};if(CFG.haToken&&CFG.haUrl!=='proxy')h.Authorization='Bearer '+CFG.haToken;
+ let r;try{r=await fetch(b+path,{method:body?'POST':'GET',headers:h,body:body?JSON.stringify(body):undefined})}catch(e){throw new Error('Home Assistant nicht erreichbar')}
+ if(!r.ok)throw new Error('Home Assistant: HTTP '+r.status+(r.status===401?' – Token prüfen':r.status===404?' – Entität/Proxy prüfen':''));
+ return r.json()}
+function haEntities(){return [...new Set([lightCfg(),psuCfg(),...extraSw()].filter(s=>s&&s.src==='ha').map(s=>s.ref))]}
+async function pollHA(){clearTimeout(haT);const ids=haEntities();
+ if(ids.length){let err='';await Promise.all(ids.map(id=>haFetch('/api/states/'+encodeURIComponent(id)).then(s=>{HA[id]=s.state}).catch(e=>{HA[id]=null;err=e.message})));
+  if(err&&err!==HAERR)toast(err,'err');HAERR=err;schedule()}
+ haT=setTimeout(pollHA,ids.length?4000:15000)}
+function lightObj(){const ks=Object.keys(ST).filter(k=>/^(output_pin|led|neopixel) /.test(k));return ks.find(k=>PAT.light.test(k.split(' ')[1]))||null}
+function lightCfg(){const s=CFG.lightSrc||'auto',r=(CFG.lightRef||'').trim(),b={name:'Licht',k:'light'};
+ if(s==='none')return null;
+ if(s==='gcode')return CFG.lightOnG&&CFG.lightOffG?Object.assign(b,{src:'gcode'}):null;
+ if(s!=='auto')return r?Object.assign(b,{src:s,ref:r}):null;
+ const o=lightObj();if(o)return Object.assign(b,{src:'klipper',ref:o});
+ const d=PWRL.find(d=>PAT.light.test(d.device));if(d)return Object.assign(b,{src:'moonraker',ref:d.device});
+ return CFG.lightOnG&&CFG.lightOffG?Object.assign(b,{src:'gcode'}):null}
+function psuCfg(){const s=CFG.psuSrc||'auto',r=(CFG.psuRef||'').trim(),b={name:'Netzteil',k:'psu'};
+ if(s==='none')return null;if(s!=='auto')return r?Object.assign(b,{src:s,ref:r}):null;
+ const d=PWRL.find(d=>PAT.psu.test(d.device)&&!PAT.light.test(d.device));return d?Object.assign(b,{src:'moonraker',ref:d.device}):null}
+function extraSw(){const out=[];(CFG.extras||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>{
+ const m=x.match(/^(ha|mr|moonraker|klipper):([^=]+?)\s*(?:=(.+))?$/i);if(!m)return;
+ out.push({src:{ha:'ha',mr:'moonraker',moonraker:'moonraker',klipper:'klipper'}[m[1].toLowerCase()],ref:m[2].trim(),name:(m[3]||m[2]).trim(),k:'x'})});return out}
+function allSw(){const l=lightCfg(),p=psuCfg(),ex=extraSw(),used=[l,p,...ex].filter(s=>s&&s.src==='moonraker').map(s=>s.ref);
+ return [p,l,...ex,...PWRL.filter(d=>!used.includes(d.device)).map(d=>({src:'moonraker',ref:d.device,name:cap(d.device),k:'x'}))].filter(Boolean)}
+function swState(s){if(!s)return null;const r=s.ref;
+ switch(s.src){
+  case 'klipper':{const o=ST[r];if(!o)return null;if(r.startsWith('output_pin'))return o.value>0;const c=o.color_data&&o.color_data[0];return c?c.some(v=>v>0):false}
+  case 'gcode':return !!KL.light;
+  case 'moonraker':return PWR[r]==null||!['on','off'].includes(PWR[r])?null:PWR[r]==='on';
+  case 'ha':{const v=HA[r];return v==null||v==='unavailable'||v==='unknown'?null:v==='on'}}
+ return null}
+function swSet(s,on){const r=s.ref;
+ switch(s.src){
+  case 'klipper':{const n=r.split(' ')[1];return r.startsWith('output_pin')?G(`SET_PIN PIN=${n} VALUE=${on?1:0}`):G(`SET_LED LED=${n} RED=${on?1:0} GREEN=${on?1:0} BLUE=${on?1:0}`)}
+  case 'gcode':KL.light=on;schedule();return G(on?CFG.lightOnG:CFG.lightOffG);
+  case 'moonraker':return api('machine.device_power.post_device',{device:r,action:on?'on':'off'}).then(x=>{if(x&&x[r])PWR[r]=x[r];schedule()}).catch(e=>{toast((e&&e.message)||'Fehler','err');throw e});
+  case 'ha':{const old=HA[r];HA[r]=on?'on':'off';schedule();
+   return haFetch('/api/services/homeassistant/'+(on?'turn_on':'turn_off'),{entity_id:r}).then(()=>{setTimeout(pollHA,900)}).catch(e=>{HA[r]=old;toast(e.message,'err');schedule();throw e})}}
+ return Promise.reject(new Error('Unbekannte Quelle'))}
+function srcName(s){return ({klipper:'Klipper',moonraker:'Moonraker',ha:'Home Assistant',gcode:'G-Code-Makro'}[s.src]||'')+(s.ref?' · '+s.ref:'')}
+function toggleLight(){const s=lightCfg();if(!s)return toast('Kein Licht eingerichtet – siehe Einstellungen');swSet(s,swState(s)!==true).catch(()=>{})}
+function psuToggle(){const p=psuCfg();if(!p)return toast('Kein Netzteil-Schalter eingerichtet');
+ if(swState(p)!==true)return psuOn();
+ if(isPrinting())return toast('Während des Drucks gesperrt');
+ const t=(ST.extruder||{}).temperature||0;
+ if(t>50&&(M.ready||!live()))return modal(`<h3>Netzteil ausschalten</h3><p class="sub" style="font-size:1rem">Die Düse ist noch <b>${r0(t)} °C</b> heiß. Ohne Strom steht der Hotend-Lüfter still – das kann zu Hitzestau im Kühlkörper führen.</p>
+  <div class="row"><button class="btn" data-a="mclose">Abbrechen</button><button class="btn pri" data-a="poArm">Ausschalten bei &lt; 50 °C</button></div><div class="row"><button class="btn red" data-a="psuOffNow">Sofort ausschalten</button></div>`);
+ confirmBox('Drucker-Netzteil ausschalten?','Ausschalten',psuOffNow,true)}
+function psuOffNow(){const p=psuCfg();PO=false;closeModal();if(p)swSet(p,false).then(()=>toast('Netzteil ausgeschaltet')).catch(()=>{})}
+function psuOn(){const p=psuCfg();if(!p)return;swSet(p,true).then(()=>{toast('Netzteil eingeschaltet – Drucker startet');
+ if(live())setTimeout(()=>{if(M.ok&&KL.state!=='ready')api('printer.firmware_restart').catch(()=>{})},8000)}).catch(()=>{})}
+function switchesModal(){modal(`<h3>Schalter</h3><div id="swl"></div><p class="sub">Quellen und Home-Assistant-Verbindung legst du unter <b>Einstellungen</b> fest. Moonraker-<span class="mono">[power]</span>-Geräte erscheinen automatisch.</p>
+ <div class="row"><button class="btn ghost" data-a="tile" data-v="conn">Einstellungen</button><button class="btn" data-a="mclose">Schließen</button></div>`,()=>{
+ const L=allSw(),key=L.map(s=>s.src+s.ref+swState(s)).join('|');
+ dyn($('#swl'),key,L.length?L.map((s,i)=>{const v=swState(s);return `<button class="swrow tap" data-a="swTog" data-v="${i}"><span class="ico">${ic(s.k==='psu'?'power':s.k==='light'?'bulb':'plug')}</span><span><b>${esc(s.name)}</b><small>${esc(srcName(s))}${v===null?' · Status unbekannt':''}</small></span><span class="sw ${v?'on':''}"></span></button>`}).join(''):'<p class="sub">Noch keine Schalter eingerichtet.</p>')})}
+
+/* ================= Render ================= */
+let raf=0;function schedule(){if(!raf)raf=requestAnimationFrame(render)}
+function tempSensors(){return Object.keys(ST).filter(k=>/^temperature_(sensor|host) /.test(k))}
+function filSensor(){return Object.keys(ST).find(k=>/^filament_(switch|motion)_sensor /.test(k))}
+function progress(){const ps=ST.print_stats||{};if(ps.state==='complete')return 1;const v=ST.virtual_sdcard,d=ST.display_status;return (v&&v.progress)||(d&&d.progress)||0}
+function layers(){const ps=ST.print_stats||{},inf=ps.info||{},m=KL.meta||{};let c=inf.current_layer,t=inf.total_layer;
+ if(t==null&&m.layer_height&&m.object_height){const fl=m.first_layer_height||m.layer_height;t=Math.ceil((m.object_height-fl)/m.layer_height)+1;const z=((ST.gcode_move||{}).gcode_position||[0,0,0])[2];c=clamp(Math.ceil((z-fl)/m.layer_height)+1,0,t)}
+ return t!=null?`${c||0} / ${t}`:''}
+function remaining(){const ps=ST.print_stats||{},p=progress(),d=ps.print_duration||0,est=KL.meta&&KL.meta.estimated_time;
+ if(p>=1)return 0;if(p>0.08&&d>60)return d/p-d;if(est)return est*(1-p);return null}
+function render(){raf=0;
+ const ps=ST.print_stats||{},st=ps.state||'standby',ex=ST.extruder||{},bd=ST.heater_bed||{};
+ if(ps.filename&&ps.filename!==KL.metaFile)loadMeta(ps.filename);
+ if(st==='printing'&&prevState&&prevState!=='printing'&&prevState!=='paused')go('home');
+ if(st==='complete'&&prevState==='printing'&&CFG.psuAutoOff&&psuCfg()){PO=true;toast('Druck fertig – Netzteil schaltet nach dem Abkühlen aus')}
+ if(st==='printing')PO=false;
+ prevState=st;
+ if(PO){const p=psuCfg(),t=(ST.extruder||{}).temperature;if(!p||swState(p)===false)PO=false;else if(!isPrinting()&&t!=null&&t<50&&(M.ready||!live()))psuOffNow()}
+ $('#po-chip').hidden=!PO;if(PO)set('po-chip',`Netzteil aus bei < 50 °C (jetzt ${r0((ST.extruder||{}).temperature)} °C) · Abbrechen`);
+ const printing=st==='printing'||st==='paused';
+ const finished=['complete','cancelled','error'].includes(st)&&!!ps.filename&&dismissed!==ps.filename+st;
+ const showPrint=printing||finished;
+ $('#h-idle').hidden=showPrint;$('#h-print').hidden=!showPrint;
+ const tN=`${r0(ex.temperature)}°C/${r0(ex.target)}°C`,tB=`${r0(bd.temperature)}°C/${r0(bd.target)}°C`;
+ // Idle
+ set('pname',`${CFG.name} · ${live()?(M.ready?'bereit':'offline'):'Demo'}`);
+ set('st-noz',`${r0(ex.temperature)} °C`);set('st-bed',`${r0(bd.temperature)} °C`);
+ const fs=filSensor(),fsd=fs?ST[fs]:null;
+ set('st-fil',fsd?(fsd.enabled===false?'Sensor aus':fsd.filament_detected?'Filament OK':'Kein Filament'):'Kein Sensor');
+ $('#st-fil-i').className=fsd&&fsd.enabled!==false?(fsd.filament_detected?'ok':'bad'):'';
+ set('st-con',live()?(M.ready?'Verbunden':'Getrennt'):'Demo');$('#st-con-i').className=live()?(M.ready?'ok':'bad'):'warn';
+ // Print
+ if(showPrint){
+  const p=progress();set('p-pct',r0(p*100)+'%');$('#p-bar').style.width=(p*100).toFixed(1)+'%';
+  const rem=remaining(),ly=layers();set('p-lay',[ly,rem!=null&&printing?'-'+fmtDur(rem):''].filter(Boolean).join(' | '));
+  set('p-name',baseName(ps.filename));
+  let s={printing:(ps.print_duration||0)<1?'Vorbereitung…':'Druckt',paused:'Pausiert',complete:'Fertig',cancelled:'Abgebrochen',error:'Fehler'}[st]||st;
+  if(st==='printing'&&ex.target&&ex.temperature<ex.target-5&&(ps.print_duration||0)<1)s='Heizt Düse auf…';
+  if(st==='error'&&ps.message)s+=': '+ps.message;
+  set('p-state',s);
+  const u=thumbUrl(KL.meta),im=$('#p-thumb');if(u){if(im._u!==u){im._u=u;im.src=u}im.hidden=false;$('#p-noth').hidden=true}else{im.hidden=true;$('#p-noth').hidden=false}
+  dyn($('#b-pause'),'p'+st+finished,finished?`${ic('reprint')}<span>Erneut</span>`:st==='paused'?`${ic('play')}<span>Fortsetzen</span>`:`${ic('pause')}<span>Pause</span>`);
+  dyn($('#b-stop'),'s'+finished,finished?`${ic('check')}<span>OK</span>`:`${ic('stop')}<span>Stopp</span>`);
+  $('#b-stop').classList.toggle('stop',!finished);
+  $('#b-skip').disabled=!printing;$('#b-tune').disabled=!printing;
+  $('#p-sp').style.background=CFG.filamentColor;set('p-mat',CFG.material);
+  $('#p-noz2').innerHTML=`${ic('nozzle')}${r0(ex.temperature)}°C`;$('#p-bed2').innerHTML=`${ic('bedheat')}${r0(bd.temperature)}°C`;
+  const cam=$('#pr-cam'),camOn=CAM&&!!CFG.webcam;$('#pr-img').hidden=camOn;cam.hidden=!camOn;$('#cam-tg').classList.toggle('on',camOn);
+  if(camOn&&cam._u!==CFG.webcam){cam._u=CFG.webcam;cam.src=CFG.webcam}if(!camOn&&cam._u){cam._u='';cam.removeAttribute('src')}
+ }
+ // Steuerung
+ const fan=(ST.fan||{}).speed||0;set('v-fan',fan>0?`Bauteil ${r0(fan*100)}%`:'Kein Lüfter an');
+ const sf=r0(((ST.gcode_move||{}).speed_factor||1)*100);set('v-spd',{50:'Leise',100:'Standard',124:'Sport',166:'Turbo'}[sf]||sf+'%');
+ const ha=((ST.toolhead||{}).homed_axes||'').toUpperCase();set('v-mot',ha||'Nicht referenziert');
+ set('v-noz',tN);set('v-bed',tB);
+ const ts=tempSensors()[0];set('v-mcu-n',ts?cap(ts.split(' ')[1]):'Elektronik');set('v-mcu',ts?`${r0(ST[ts].temperature)}°C`:'–');
+ const LC=lightCfg(),PC=psuCfg(),pv=swState(PC);
+ $('#c-light').hidden=!LC;$('#sw-light').classList.toggle('on',swState(LC)===true);
+ $('#c-psu').hidden=!PC;$('#sw-psu').classList.toggle('on',pv===true);
+ $('#st-psu-w').hidden=!PC;if(PC){set('st-psu',pv===true?'Netzteil an':pv===false?'Netzteil aus':'Netzteil ?');$('#st-psu-i').className=pv===true?'ok':pv===false?'bad':'warn'}
+ // Filament
+ if($('#pg-filament').classList.contains('on'))renderFil();
+ // Settings badge / chips
+ const pend=!!(ST.configfile&&ST.configfile.save_config_pending);
+ $('#b-set').hidden=!pend;$('#save-chip').hidden=!pend||isPrinting()||!$('#ov').hidden;
+ const sb=$('#tile-save .badge');if(sb)sb.hidden=!pend;
+ $('#demo-chip').hidden=live();
+ if(ERRN&&!$('#pg-msg').classList.contains('on')){$('#b-msg').hidden=false;$('#b-msg').textContent=ERRN>9?'9+':ERRN}else $('#b-msg').hidden=true;
+ if($('#pg-msg').classList.contains('on'))renderLog();
+ renderConn();updEnder();
+ if(ovR)ovR();if(mR)mR();
+}
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1).replace(/_/g,' '):'';
+function renderConn(){const show=live()&&!(M.ok&&M.ready);$('#conn').hidden=!show;if(!show)return;
+ const p=psuCfg(),off=!!p&&swState(p)===false&&(p.src==='ha'||M.ok),l=lightCfg(),lv=swState(l);
+ $('#cn-psu').hidden=!off;$('#cn-spin').hidden=off;
+ $('#cn-light').hidden=!(l&&(l.src==='ha'||(l.src==='moonraker'&&M.ok)));set('cn-lv',lv===true?'ausschalten':'einschalten');
+ if(off){set('cn-t','Drucker ist ausgeschaltet');set('cn-m','Netzteil über '+(p.src==='ha'?'Home Assistant':'Moonraker')+' einschalten – Klipper verbindet sich danach automatisch.');return}
+ if(!M.ok){set('cn-t','Verbinde mit Moonraker…');set('cn-m',M.base().ws+'/websocket')}
+ else{set('cn-t',KL.state==='startup'?'Klipper startet…':'Klipper: '+(KL.state||'nicht bereit'));set('cn-m',KL.msg||'')}}
+
+/* ================= Navigation ================= */
+function go(p){document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='pg-'+p));
+ document.querySelectorAll('.nav').forEach(e=>e.classList.toggle('on',e.dataset.v===p));
+ if(p==='msg'){ERRN=0;$('#log')._v=-1}if(p==='filament')renderFil(true);schedule()}
+
+/* ================= Filament ================= */
+function renderFil(force){const ex=ST.extruder||{},m=MATS[CFG.material]||MATS.PLA;
+ $('#f-sp').style.background=CFG.filamentColor;set('f-mat',CFG.material);set('f-tmp',`Düse ${m[0]} °C · Bett ${m[1]} °C`);
+ $('#f-noz').innerHTML=`${ic('nozzle')}${r0(ex.temperature)} / ${r0(ex.target)} °C`;
+ const fs=filSensor(),d=fs?ST[fs]:null;$('#f-sens').innerHTML=d?(d.enabled===false?'Filamentsensor deaktiviert':d.filament_detected?`<span class="ok">●</span> Filament erkannt`:`<span class="bad">●</span> Kein Filament`):'Kein Filamentsensor';
+ dyn($('#mat-chips'),CFG.material,Object.keys(MATS).map(k=>`<button class="chip tap ${k===CFG.material?'on':''}" data-a="mat" data-v="${k}">${k}</button>`).join(''));
+ dyn($('#swatches'),CFG.filamentColor,COLORS.map(c=>`<button class="swatch tap ${c===CFG.filamentColor?'on':''}" style="background:${c}" data-a="col" data-v="${c}"></button>`).join(''))}
+function filTemp(){return (MATS[CFG.material]||MATS.PLA)[0]}
+function fLoad(){const t=filTemp();if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');
+ confirmBox(`Die Düse heizt auf <b>${t} °C</b>. Filament gerade abschneiden und in den Sprite-Extruder schieben, bis die Zahnräder greifen. Danach fördert der Drucker automatisch.`,'Laden',()=>job('Filament wird geladen',`LOAD_FILAMENT TEMP=${t}`,{heater:'extruder',msg:'Heizen, dann Fördern…',doneTitle:'Filament geladen'}))}
+function fUnload(){const t=filTemp();if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');
+ job('Filament wird entladen',`UNLOAD_FILAMENT TEMP=${t}`,{heater:'extruder',msg:'Heizen, dann Zurückziehen…',doneTitle:'Filament entladen'})}
+function fChange(){const st=(ST.print_stats||{}).state;
+ if(st==='printing')return confirmBox('Druck pausieren, Kopf parken und Filament entladen? Danach neues Filament mit „Laden“ einziehen und auf der Startseite fortsetzen.','Wechseln',()=>G('M600').then(()=>{toast('Neues Filament einlegen → Laden → Fortsetzen');go('filament')}));
+ const t=filTemp();job('Filament wird entladen',`UNLOAD_FILAMENT TEMP=${t}`,{heater:'extruder',doneTitle:'Entladen – neues Filament einlegen',doneBtn:{label:'Jetzt laden',fn:fLoad}})}
+
+/* ================= Sheets: Steuerung ================= */
+function setTemp(h){const isE=h==='extruder',cur=(ST[h]||{}).target||0,max=((KL.settings||{})[h]||{}).max_temp||(isE?260:100);
+ numpad(isE?'Düsentemperatur':'Heizbetttemperatur',cur,isE?[0,190,205,235,245]:[0,50,60,75,100],max,v=>G(`SET_HEATER_TEMPERATURE HEATER=${h} TARGET=${v}`))}
+function fanModal(){modal(`<h3>Bauteillüfter</h3><div class="bigval" id="fm-v">–</div><input type="range" min="0" max="100" step="5" id="fm-r" data-c="fan" data-l="fm-v"><div class="chips">${[0,30,50,80,100].map(v=>`<button class="chip tap" data-a="fanSet" data-v="${v}">${v}%</button>`).join('')}</div><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const v=r0(((ST.fan||{}).speed||0)*100),r=$('#fm-r');if(r&&!r._drag){r.value=v;set('fm-v',v+'%')}})}
+function speedModal(){const MD=[[50,'Leise'],[100,'Standard'],[124,'Sport'],[166,'Turbo']];
+ modal(`<h3>Druckgeschwindigkeit</h3><div class="modes" id="sm-m">${MD.map(([v,n])=>`<button class="mode tap" data-a="spdSet" data-v="${v}" data-m="${v}"><b>${n}</b><span>${v}%</span></button>`).join('')}</div>
+ <div class="sub" style="margin-top:1rem">Individuell: <b id="sm-v"></b></div><input type="range" min="20" max="200" step="1" id="sm-r" data-c="spd" data-l="sm-v"><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const v=r0(((ST.gcode_move||{}).speed_factor||1)*100);document.querySelectorAll('#sm-m .mode').forEach(b=>b.classList.toggle('on',+b.dataset.m===v));const r=$('#sm-r');if(r&&!r._drag){r.value=v;set('sm-v',v+'%')}})}
+function motionModal(){
+ const jb=(a,d,i,l)=>`<button class="jb tap" data-a="jog" data-v="${a}:${d}">${i?ic(i):''}${l||''}</button>`;
+ modal(`<h3>Bewegung</h3><div class="mot">
+ <div class="pad"><span></span>${jb('Y',1,'up','')}<span></span>${jb('X',-1,'left','')}<button class="jb tap" data-a="g" data-v="G28 X Y">${ic('homeax')}</button>${jb('X',1,'right','')}<span></span>${jb('Y',-1,'down','')}<span></span></div>
+ <div class="zcol">${jb('Z',1,'up','')}<button class="jb tap" data-a="g" data-v="G28 Z">Z ${ic('homeax')}</button>${jb('Z',-1,'down','')}</div>
+ <div class="posbox"><div class="kv"><span>X</span><b id="mo-x"></b></div><div class="kv"><span>Y</span><b id="mo-y"></b></div><div class="kv"><span>Z</span><b id="mo-z"></b></div>
+ <div class="kv"><span>Referenziert</span><b id="mo-h"></b></div><div class="sub" style="margin-top:.8rem">Schrittweite (mm)</div><div class="chips" id="mo-s">${[0.1,1,10,50].map(v=>`<button class="chip tap" data-a="step" data-v="${v}">${v}</button>`).join('')}</div></div></div>
+ <div class="row"><button class="btn pri" data-a="g" data-v="G28">Alle Achsen referenzieren</button><button class="btn" data-a="g" data-v="M84">Motoren aus</button><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const p=(ST.toolhead||{}).position||[0,0,0],h=((ST.toolhead||{}).homed_axes||'');set('mo-x',f2(p[0]));set('mo-y',f2(p[1]));set('mo-z',f2(p[2]));
+  $('#mo-h').innerHTML=['x','y','z'].map(a=>`<span class="hm ${h.includes(a)?'on':''}">${a.toUpperCase()}</span>`).join('');
+  document.querySelectorAll('#mo-s .chip').forEach(b=>b.classList.toggle('on',+b.dataset.v===JS))},true)}
+function jog(a,d){if(isPrinting())return toast('Während des Drucks gesperrt');if(!homed(a.toLowerCase()))return toast(`Achse ${a} ist nicht referenziert`);
+ G(`SAVE_GCODE_STATE NAME=s1jog\nG91\nG1 ${a}${(d*JS).toFixed(2)} F${a==='Z'?600:6000}\nRESTORE_GCODE_STATE NAME=s1jog`)}
+function nozModal(){modal(`<h3>Düse &amp; Extruder</h3><div class="bigval" id="nm-t"></div>
+ <div class="row" style="margin-top:0"><button class="btn pri" data-a="setTemp" data-v="extruder">Temperatur setzen</button><button class="btn" data-a="g" data-v="SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0">Ausschalten</button></div>
+ <div class="sub" style="margin:1.2rem 0 .5rem">Extruder – Länge (mm)</div><div class="chips" id="nm-l">${[5,10,25,50].map(v=>`<button class="chip tap" data-a="eLen" data-v="${v}">${v}</button>`).join('')}</div>
+ <div class="row"><button class="btn" data-a="ext" data-v="-1">${'↑ Zurückziehen'}</button><button class="btn" data-a="ext" data-v="1">${'↓ Extrudieren'}</button></div>
+ <p class="sub">Extrudieren ist erst ab 170 °C möglich.</p><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const e=ST.extruder||{};set('nm-t',`${r0(e.temperature)} / ${r0(e.target)} °C`);document.querySelectorAll('#nm-l .chip').forEach(b=>b.classList.toggle('on',+b.dataset.v===EL))})}
+function extrude(d){if((ST.print_stats||{}).state==='printing')return toast('Während des Drucks gesperrt');if(((ST.extruder||{}).temperature||0)<170)return toast('Düse zu kalt (min. 170 °C)');
+ G(`SAVE_GCODE_STATE NAME=s1ext\nM83\nG1 E${d*EL} F${d>0?300:1800}\nRESTORE_GCODE_STATE NAME=s1ext`)}
+function sensorModal(){modal(`<h3>Temperatursensoren</h3><div id="sn"></div><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const l=tempSensors();const h=l.length?l.map(k=>`<div class="kv"><span>${esc(cap(k.split(' ')[1]))}</span><b>${f2((ST[k]||{}).temperature)} °C</b></div>`).join(''):'<p class="sub">Keine Sensoren. Tipp: in Klipper <span class="mono">[temperature_sensor raspberry]</span> mit <span class="mono">sensor_type: temperature_host</span> ergänzen.</p>';const el=$('#sn');if(el&&el.innerHTML!==h)el.innerHTML=h})}
+function tuneModal(){modal(`<h3>Feinjustierung während des Drucks</h3>
+ <div class="sub">Z-Offset (Babystep)</div><div class="zrow"><button class="btn tap" data-a="zAdj" data-v="-0.05">−0.05</button><button class="btn tap" data-a="zAdj" data-v="-0.01">−0.01</button><b id="tu-z"></b><button class="btn tap" data-a="zAdj" data-v="0.01">+0.01</button><button class="btn tap" data-a="zAdj" data-v="0.05">+0.05</button></div>
+ <div class="trow"><span>Geschwindigkeit</span><input type="range" min="20" max="200" id="tu-s" data-c="spd" data-l="tu-sv"><b id="tu-sv"></b></div>
+ <div class="trow"><span>Fluss</span><input type="range" min="75" max="125" id="tu-f" data-c="flow" data-l="tu-fv"><b id="tu-fv"></b></div>
+ <div class="trow"><span>Lüfter</span><input type="range" min="0" max="100" step="5" id="tu-fa" data-c="fan" data-l="tu-fav"><b id="tu-fav"></b></div>
+ <div class="row"><button class="btn" data-a="zApply">Z-Offset in Probe übernehmen</button><button class="btn pri" data-a="mclose">Fertig</button></div>`,
+ ()=>{const gm=ST.gcode_move||{};set('tu-z',f3((gm.homing_origin||[0,0,0])[2]));
+  [['tu-s','tu-sv',(gm.speed_factor||1)*100],['tu-f','tu-fv',(gm.extrude_factor||1)*100],['tu-fa','tu-fav',((ST.fan||{}).speed||0)*100]].forEach(([r,l,v])=>{const e=$('#'+r);if(e&&!e._drag){e.value=r0(v);set(l,r0(v)+'%')}})},true)}
+function skipModal(){const eo=ST.exclude_object||{},objs=eo.objects||[];
+ if(!objs.length)return modal(`<h3>Objekte überspringen</h3><p class="sub" style="font-size:1rem">Keine Objekte gefunden. Im Slicer „Objekte beschriften / Label objects“ aktivieren (Firmware: Klipper) und in Klipper <span class="mono">[exclude_object]</span> einbinden – ist in <span class="mono">s1_touch.cfg</span> enthalten.</p><div class="row"><button class="btn" data-a="mclose">OK</button></div>`);
+ const poly=o=>(o.polygon||[]).map(p=>`${p[0].toFixed(1)},${(235-p[1]).toFixed(1)}`).join(' ');
+ modal(`<h3>Objekte überspringen</h3><div class="skip"><svg class="skmap" viewBox="0 0 235 235">${objs.map(o=>`<polygon data-n="${esc(o.name)}" points="${poly(o)}"/>`).join('')}</svg>
+ <div class="sklist">${objs.map(o=>`<button class="skitem tap" data-a="skipObj" data-v="${esc(o.name)}" data-n="${esc(o.name)}"><span>${esc(o.name)}</span><small></small></button>`).join('')}</div></div><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`,
+ ()=>{const e=ST.exclude_object||{},ex=e.excluded_objects||[];document.querySelectorAll('#mbox [data-n]').forEach(el=>{const n=el.dataset.n,x=ex.includes(n);el.classList.toggle('ex',x);el.classList.toggle('cur',!x&&e.current_object===n);const s=el.querySelector('small');if(s)s.textContent=x?'übersprungen':e.current_object===n?'druckt gerade':''})},true)}
+
+/* ================= Dateien ================= */
+let FL=[];
+async function openFiles(){ovOpen('Druckdateien','<div class="fgrid" id="fgrid"><div class="empty">Lade Dateien…</div></div>');
+ try{const l=await api('server.files.list',{root:'gcodes'});
+  FL=l.filter(f=>/\.(gcode|gco|g)$/i.test(f.path)).sort((a,b)=>b.modified-a.modified);
+  $('#fgrid').innerHTML=FL.length?FL.map((f,i)=>`<button class="card fcard tap" data-a="fileOpen" data-v="${i}"><div class="fthumb" id="ft${i}">${ic('cube')}</div><div class="fn">${esc(baseName(f.path))}</div><div class="fm sub" id="fm${i}">${fmtAgo(f.modified)}</div></button>`).join(''):'<div class="empty">Keine G-Code-Dateien vorhanden</div>';
+  for(let i=0;i<Math.min(FL.length,80);i++){if($('#ov').hidden||!$('#fgrid'))return;
+   try{const m=await api('server.files.metadata',{filename:FL[i].path});FL[i].meta=m;const u=thumbUrl(m),el=$('#ft'+i);if(el&&u)el.innerHTML=`<img src="${esc(u)}" alt="">`;
+    set('fm'+i,[m.estimated_time?fmtDur(m.estimated_time):'',m.filament_weight_total?r0(m.filament_weight_total)+' g':'',fmtAgo(FL[i].modified)].filter(Boolean).join(' · '))}catch(e){}}
+ }catch(e){$('#fgrid').innerHTML=`<div class="empty">Fehler: ${esc(e.message||e)}</div>`}}
+function fileDetail(i){const f=FL[i];if(!f)return;const m=f.meta||{},u=thumbUrl(m);
+ modal(`<h3>${esc(baseName(f.path))}</h3><div class="fdet">${u?`<img src="${esc(u)}" alt="">`:`<div class="ph">${ic('cube')}</div>`}<div>
+ <div class="kv"><span>Druckzeit (Slicer)</span><b>${m.estimated_time?fmtDur(m.estimated_time):'–'}</b></div>
+ <div class="kv"><span>Filament</span><b>${m.filament_total?(m.filament_total/1000).toFixed(2)+' m':'–'}${m.filament_weight_total?' · '+r0(m.filament_weight_total)+' g':''}</b></div>
+ <div class="kv"><span>Schichthöhe</span><b>${m.layer_height?m.layer_height+' mm':'–'}</b></div>
+ <div class="kv"><span>Objekthöhe</span><b>${m.object_height?m.object_height+' mm':'–'}</b></div>
+ <div class="kv"><span>Material</span><b>${esc(m.filament_type||'–')}</b></div>
+ <div class="kv"><span>Slicer</span><b>${esc(m.slicer||'–')}</b></div></div></div>
+ <div class="row"><button class="btn ghost" data-a="fileDel" data-v="${i}">Löschen</button><button class="btn" data-a="mclose">Zurück</button><button class="btn pri" data-a="filePrint" data-v="${i}" ${isPrinting()?'disabled':''}>Drucken</button></div>`,null,true)}
+
+/* ================= Z-Offset-Assistent ================= */
+function probeCfg(){const s=KL.settings||{};return s.bltouch||s.probe||s.beacon||null}
+function zWizard(){ovOpen('Z-Offset-Assistent','<div id="zw" style="height:100%"></div>',()=>{
+ const mp=ST.manual_probe||{},el=$('#zw');if(!el)return;const act=!!mp.is_active;
+ dyn(el,act?'a':'i',act?`<div class="two">
+  <div class="card in"><div class="sub">Aktuelle Düsenhöhe</div><div class="zhuge" id="zw-z">–</div>
+   <div class="sub">Schrittweite (mm)</div><div class="chips" id="zw-s" style="margin:.5rem 0 1rem">${[1,0.1,0.05,0.025,0.01].map(v=>`<button class="chip tap" data-a="zStep" data-v="${v}">${v}</button>`).join('')}</div>
+   <p class="sub">Blatt Papier unter die Düse legen und so weit absenken, bis es sich mit leichtem Widerstand bewegen lässt.</p>
+   <div class="row"><button class="btn red" data-a="zAbort">Abbrechen</button><button class="btn pri" data-a="zAccept">Übernehmen</button></div></div>
+  <div class="zbtns"><button class="zbtn tap" data-a="zMove" data-v="1">${ic('up')}Hoch</button><button class="zbtn tap" data-a="zMove" data-v="-1">${ic('down')}Runter</button></div></div>`
+ :`<div class="two">
+  <div class="card in"><h3>Probe-Offset kalibrieren</h3><p class="sub">Wie im Probe-Assistenten der Pro-Firmware: Der Drucker referenziert, misst mit dem CR-Touch die Bettmitte und fährt die Düse dorthin. Dann stellst du die Höhe mit Papier ein – Klipper berechnet daraus den Offset.</p>
+   <label class="chk"><input type="checkbox" id="zw-heat" checked> Bett vorher auf 60 °C heizen</label>
+   <div class="kv"><span>Gespeicherter Z-Offset</span><b id="zw-cur">–</b></div>
+   <div class="kv"><span>Probe-Versatz X / Y</span><b id="zw-xy">–</b></div>
+   <button class="btn pri big" style="margin-top:1rem" data-a="zStart">Assistent starten</button></div>
+  <div class="card in"><h3>Live-Z-Offset (Babystep)</h3><p class="sub">Feinjustierung – auch während der ersten Schicht. Danach „In Probe übernehmen“ und speichern.</p>
+   <div class="zhuge" id="zw-live" style="text-align:center">–</div>
+   <div class="zrow"><button class="btn tap" data-a="zAdj" data-v="-0.05">−0.05</button><button class="btn tap" data-a="zAdj" data-v="-0.01">−0.01</button><button class="btn tap" data-a="zAdj" data-v="0.01">+0.01</button><button class="btn tap" data-a="zAdj" data-v="0.05">+0.05</button></div>
+   <div class="row"><button class="btn ghost" data-a="zReset">Zurücksetzen</button><button class="btn" data-a="zApply">In Probe übernehmen</button></div></div></div>`);
+ if(act){set('zw-z',f3(mp.z_position));document.querySelectorAll('#zw-s .chip').forEach(b=>b.classList.toggle('on',+b.dataset.v===ZS))}
+ else{const p=probeCfg();set('zw-cur',p?f3(p.z_offset)+' mm':'–');set('zw-xy',p?`${p.x_offset} / ${p.y_offset} mm`:'–');set('zw-live',f3(((ST.gcode_move||{}).homing_origin||[0,0,0])[2]))}})}
+function zStart(){const heat=$('#zw-heat')&&$('#zw-heat').checked;if(isPrinting())return toast('Während des Drucks nicht möglich');
+ job('Vorbereitung',`${heat?'M190 S60\n':''}G28\nPROBE_CALIBRATE`,{heater:heat?'heater_bed':null,msg:'Referenzieren und Bettmitte messen…',autoClose:true})}
+function zApply(){G('Z_OFFSET_APPLY_PROBE').then(()=>{if(isPrinting())toast('Übernommen – nach dem Druck unter Einstellungen speichern');else confirmBox('Neuer Z-Offset übernommen. Jetzt dauerhaft speichern? Klipper startet dabei neu.','Speichern',()=>G('SAVE_CONFIG'))})}
+
+/* ================= Bed Mesh ================= */
+function meshColor(v,m){const t=clamp((v+m)/(2*m),0,1);return `hsl(${(220-t*220).toFixed(0)} 75% ${(52+Math.abs(t-.5)*10).toFixed(0)}%)`}
+function meshWizard(){ovOpen('Bed Mesh',`<div class="two"><div class="card in mwrap"><div class="lbl"><span>Hinten</span><span id="m-sz"></span></div><div class="mgrid" id="mgrid"></div><div class="lbl"><span>Links</span><span>Vorne</span><span>Rechts</span></div></div>
+ <div class="card in mside"><div class="kv"><span>Aktives Profil</span><b id="m-prof"></b></div><div class="kv"><span>Min / Max</span><b id="m-mm"></b></div><div class="kv"><span>Spanne</span><b id="m-rng"></b></div>
+ <label class="chk"><input type="checkbox" id="m-heat" checked> Bett vorher auf 60 °C heizen</label>
+ <button class="btn pri big" data-a="meshRun">Neues Mesh messen</button>
+ <div class="sub" style="margin-top:1rem">Gespeicherte Profile</div><div id="m-profs"></div>
+ <div class="row"><button class="btn ghost" data-a="g" data-v="BED_MESH_CLEAR">Mesh deaktivieren</button></div></div></div>`,()=>{
+ const bm=ST.bed_mesh||{},mx=bm.probed_matrix||[],ok=mx.length&&mx[0].length;
+ set('m-prof',bm.profile_name||'keins');
+ const key=JSON.stringify(mx);const g=$('#mgrid');
+ if(g&&g._k!==key){g._k=key;if(ok){const all=mx.flat(),mn=Math.min(...all),mxv=Math.max(...all),m=Math.max(Math.abs(mn),Math.abs(mxv),0.05);
+   g.style.gridTemplateColumns=`repeat(${mx[0].length},1fr)`;g.innerHTML=mx.slice().reverse().map(r=>r.map(v=>`<div class="mc" style="background:${meshColor(v,m)}">${v>=0?'+':''}${v.toFixed(2)}</div>`).join('')).join('');
+   set('m-mm',`${mn.toFixed(3)} / ${mxv.toFixed(3)} mm`);set('m-rng',(mxv-mn).toFixed(3)+' mm');set('m-sz',`${mx[0].length}×${mx.length} Punkte`)}
+  else{g.style.gridTemplateColumns='1fr';g.innerHTML='<div class="empty">Kein Mesh geladen</div>';set('m-mm','–');set('m-rng','–');set('m-sz','')}}
+ const pr=Object.keys(bm.profiles||{});dyn($('#m-profs'),pr.join('|')+bm.profile_name,pr.length?pr.map(n=>`<div class="prow"><span>${esc(n)}${n===bm.profile_name?' <span class="ok">●</span>':''}</span><button class="btn" data-a="meshLoad" data-v="${esc(n)}">Laden</button><button class="btn ghost" data-a="meshDel" data-v="${esc(n)}">Löschen</button></div>`).join(''):'<p class="sub">Keine Profile</p>')})}
+function meshRun(){if(isPrinting())return toast('Während des Drucks nicht möglich');const heat=$('#m-heat').checked;
+ job('Bed Mesh wird gemessen',`${heat?'M190 S60\n':''}G28\nBED_MESH_CALIBRATE`,{heater:heat?'heater_bed':null,msg:'Referenzieren und Bett abtasten…',doneTitle:'Mesh erstellt (Profil „default“)',doneBtn:{label:'Speichern & Neustart',fn:()=>G('SAVE_CONFIG')}})}
+
+/* ================= Tramming ================= */
+function tramWizard(){if(!TM)TM=(KL.settings||{}).screws_tilt_adjust?'probe':'paper';
+ ovOpen('Bett ausrichten (Tramming)',`<div class="two"><div class="card in" style="display:flex;min-height:0"><div class="bedsq" id="t-bed"></div></div><div class="card in" id="t-side"></div></div>`,()=>{
+ const sta=(KL.settings||{}).screws_tilt_adjust,bed=$('#t-bed'),side=$('#t-side');if(!bed)return;const p=probeCfg()||{x_offset:0,y_offset:0};
+ const pos=(x,y)=>`left:${clamp(x/235*100,7,93)}%;top:${clamp(100-y/235*100,7,93)}%`;
+ if(TM==='probe'){
+  const names=Object.keys(sta||{}).filter(k=>/^screw\d+$/.test(k)).sort();const res=(ST.screws_tilt_adjust||{}).results||{};
+  const key='p'+JSON.stringify(res);
+  dyn(bed,key,`<span class="lbl" style="top:.4rem">Hinten</span><span class="lbl" style="bottom:.4rem">Vorne</span>`+names.map((n,i)=>{const c=sta[n];const sx=(+c[0])+(+p.x_offset||0),sy=(+c[1])+(+p.y_offset||0);const r=res[n];
+   let cl='',lb='–';if(r){if(r.is_base){cl='b';lb='Referenz'}else{const[h,mi]=String(r.adjust||'00:00').split(':').map(Number);const tot=h*60+mi;cl=tot<=5?'g':tot<=15?'y':'r';lb=`${r.sign==='CW'?'↻':'↺'} ${r.adjust}`}}
+   return `<div class="scr ${cl}" style="${pos(sx,sy)}"><i>${i+1}</i><em>${lb}</em></div>`}).join(''));
+  dyn(side,'probe'+!!sta,`<div class="tabs"><button class="on" data-a="tramMode" data-v="probe">Mit CR-Touch</button><button data-a="tramMode" data-v="paper">Papier-Methode</button></div>
+   ${sta?`<p class="sub">Der Sensor misst an allen 4 Schrauben. Angabe in Umdrehungen:Minuten – <b>00:15</b> = Viertel-, <b>00:30</b> = halbe Umdrehung. ↻ im, ↺ gegen den Uhrzeigersinn <b>von oben</b> betrachtet. Die Rändelmuttern unter dem Bett drehst du von unten gesehen genau andersherum.</p>
+   <p class="sub"><span class="ok">●</span> ≤ 00:05 passt · <span class="warn">●</span> ≤ 00:15 · <span class="bad">●</span> &gt; 00:15</p>
+   <button class="btn pri big" data-a="tramRun">Messen</button><p class="sub">Nach dem Drehen erneut messen, bis alle grün sind.</p>`
+   :`<p class="sub">Für die Sensor-Messung fehlt <span class="mono">[screws_tilt_adjust]</span> in Klipper. Die passende Sektion für den S1 ist in <span class="mono">s1_touch.cfg</span> enthalten.</p>`}`);
+ }else{
+  const C=CFG.corners;const key='m'+TI;
+  dyn(bed,key,`<span class="lbl" style="top:.4rem">Hinten</span><span class="lbl" style="bottom:.4rem">Vorne</span>`+C.map((c,i)=>`<button class="scr tap ${i===TI?'cur':''}" style="${pos(c[0],c[1])}" data-a="tramGo" data-v="${i}"><i>${i+1}</i><em>${['Vorne links','Vorne rechts','Hinten rechts','Hinten links'][i]||''}</em></button>`).join(''));
+  dyn(side,'paper',`<div class="tabs"><button data-a="tramMode" data-v="probe">Mit CR-Touch</button><button class="on" data-a="tramMode" data-v="paper">Papier-Methode</button></div>
+   <p class="sub">Tippe eine Ecke an: Der Drucker fährt die Düse auf Z0 über die Schraube. Papier dazwischen und die Rändelmutter drehen, bis das Papier leicht kratzt. Zweimal reihum wiederholen.</p>
+   <button class="btn pri big" data-a="tramNext">Nächste Ecke</button><div class="row"><button class="btn" data-a="tramUp">Z +5 mm</button><button class="btn ghost" data-a="g" data-v="M84">Motoren aus</button></div>`)}})}
+function tramGo(i){if(isPrinting())return toast('Während des Drucks nicht möglich');TI=i;const c=CFG.corners[i];schedule();
+ G(`${homed('xyz')?'':'G28\n'}G90\nG1 Z5 F600\nG1 X${c[0]} Y${c[1]} F6000\nG1 Z0 F300`)}
+
+/* ================= PID / Kamera / Einstellungen / System ================= */
+function pidModal(){modal(`<h3>PID-Tuning</h3><p class="sub">Heizt auf die Zieltemperatur und regelt mehrmals nach (ca. 5 Min.). Wenn du meist mit Bauteillüfter druckst, ihn vorher einschalten.</p>
+ <div class="pidr"><span>Düse</span><input type="number" id="pid-e" value="${filTemp()}"><button class="btn pri" data-a="pid" data-v="extruder">Starten</button></div>
+ <div class="pidr"><span>Heizbett</span><input type="number" id="pid-b" value="${(MATS[CFG.material]||MATS.PLA)[1]}"><button class="btn pri" data-a="pid" data-v="heater_bed">Starten</button></div>
+ <div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`)}
+function camView(){ovOpen('Kamera',CFG.webcam?`<img class="camv" src="${esc(CFG.webcam)}" alt="Webcam">`:`<div class="empty">Keine Webcam-URL eingetragen.<br>Unter <b>Einstellungen</b> z. B. <span class="mono">/webcam/?action=stream</span> eintragen (Crowsnest).</div>`)}
+function settingsView(){
+ const sel=(id,cur,o)=>`<select id="${id}">${o.map(([v,n])=>`<option value="${v}" ${v===cur?'selected':''}>${n}</option>`).join('')}</select>`;
+ const SRC=[['auto','Automatisch'],['ha','Home Assistant'],['moonraker','Moonraker [power]'],['klipper','Klipper-Pin / LED'],['gcode','Eigener G-Code'],['none','Keins']];
+ const sug=[...Object.keys(ST).filter(k=>/^(output_pin|led|neopixel) /.test(k)),...PWRL.map(d=>d.device)];
+ ovOpen('Einstellungen',`<div class="setg"><div class="card in">
+ <h3>Drucker</h3>
+ <label class="f">Druckername<input type="text" id="s-name" value="${esc(CFG.name)}"></label>
+ <label class="f">Moonraker-Host / IP <small>– leer = Demo, „proxy“ = über diesen Server (nginx)</small><input type="text" id="s-host" value="${esc(CFG.host)}" placeholder="z.B. 192.168.1.50 oder proxy"></label>
+ <label class="f">Port <small>(Standard 7125, bei „proxy“ leer lassen)</small><input type="text" id="s-port" value="${esc(CFG.port)}"></label>
+ <label class="f">Webcam-Stream-URL<input type="url" id="s-cam" value="${esc(CFG.webcam)}" placeholder="/webcam/?action=stream"></label></div>
+ <div class="card in"><h3>Home Assistant</h3>
+ <label class="f">Adresse <small>– „proxy“ = über nginx (empfohlen, Token liegt dann im Server)</small><input type="text" id="s-ha" value="${esc(CFG.haUrl)}" placeholder="proxy oder http://192.168.1.10:8123"></label>
+ <label class="f">Long-Lived Access Token <small>(nur ohne Proxy nötig – wird im Tablet-Browser gespeichert)</small><input type="text" id="s-hat" value="${esc(CFG.haToken)}" autocomplete="off" style="-webkit-text-security:disc"></label>
+ <div class="row"><button class="btn" data-a="haTest">Verbindung testen &amp; Entitäten laden</button></div>
+ <p class="sub" id="s-hamsg"></p></div>
+ <div class="card in full"><h3>Schalter</h3>
+ <div class="sgrid"><b>Licht</b>${sel('s-lsrc',CFG.lightSrc||'auto',SRC)}<input type="text" id="s-lref" list="dl-sw" value="${esc(CFG.lightRef)}" placeholder="z.B. light.drucker_licht"></div>
+ <div class="sgrid"><span class="sub">Licht-G-Code</span><input type="text" id="s-lon" value="${esc(CFG.lightOnG)}" placeholder="an, z.B. LICHT_AN"><input type="text" id="s-loff" value="${esc(CFG.lightOffG)}" placeholder="aus, z.B. LICHT_AUS"></div>
+ <div class="sgrid"><b>Netzteil</b>${sel('s-psrc',CFG.psuSrc||'auto',SRC.filter(x=>!['klipper','gcode'].includes(x[0])))}<input type="text" id="s-pref" list="dl-sw" value="${esc(CFG.psuRef)}" placeholder="z.B. switch.drucker_steckdose"></div>
+ <label class="f">Weitere Schalter <small>– kommagetrennt, z.B. <span class="mono">ha:switch.absaugung=Absaugung, mr:enclosure_fan</span></small><input type="text" id="s-ext" list="dl-sw" value="${esc(CFG.extras)}"></label>
+ <label class="chk"><input type="checkbox" id="s-pao" ${CFG.psuAutoOff?'checked':''}> Netzteil nach Druckende automatisch ausschalten, sobald die Düse unter 50 °C ist</label>
+ <p class="sub">„Automatisch“ nimmt beim Licht einen Klipper-Pin/LED oder ein Moonraker-Gerät mit „light/licht/led“ im Namen, beim Netzteil ein Moonraker-Gerät mit „printer/drucker/psu/netzteil/power“ im Namen.</p>
+ <datalist id="dl-sw">${sug.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+ <div class="row"><button class="btn" data-a="demo">Demo-Modus</button><button class="btn pri" data-a="cfgSave">Speichern &amp; verbinden</button></div></div></div>`);
+ if(CFG.haUrl||!live())haLoadEntities(true)}
+async function haLoadEntities(quiet){const m=$('#s-hamsg');if(!m)return;
+ try{if(!quiet)set('s-hamsg','Teste…');const r=await haFetch('/api/');const st=await haFetch('/api/states').catch(()=>[]);
+  HAENT=(st||[]).filter(e=>/^(switch|light|input_boolean|fan)\./.test(e.entity_id));
+  const dl=$('#dl-sw');if(dl)HAENT.forEach(e=>dl.insertAdjacentHTML('beforeend',`<option value="${esc(e.entity_id)}">${esc((e.attributes||{}).friendly_name||'')}</option>`));
+  set('s-hamsg',`✓ ${r&&r.message?r.message:'Verbunden'} – ${HAENT.length} schaltbare Entitäten gefunden (Vorschläge in den Feldern).`)}
+ catch(e){if(!quiet||CFG.haUrl)set('s-hamsg','✗ '+e.message)}}
+async function sysInfo(){let a={},b={};try{a=await api('printer.info')}catch(e){}try{b=await api('server.info')}catch(e){}
+ modal(`<h3>System</h3><div class="kv"><span>Klipper</span><b>${esc(a.software_version||'–')}</b></div><div class="kv"><span>Klipper-Status</span><b>${esc(a.state||KL.state||'–')}</b></div><div class="kv"><span>Moonraker</span><b>${esc(b.moonraker_version||'–')}</b></div><div class="kv"><span>Host</span><b>${esc(a.hostname||'–')}</b></div><div class="kv"><span>Verbindung</span><b>${live()?esc(M.base().ws):'Demo'}</b></div><div class="kv"><span>Oberfläche</span><b>S1 Touch 1.0</b></div><div class="row"><button class="btn" data-a="mclose">Schließen</button></div>`)}
+function restartModal(){modal(`<h3>Neustart</h3>
+ <div class="row" style="flex-direction:column"><button class="btn" data-a="fwRestart">Firmware-Neustart (MCU + Klipper)</button><button class="btn" data-a="klRestart">Klipper-Neustart (Konfiguration neu laden)</button><button class="btn" data-a="hostReboot">Klipper-Host neu starten</button><button class="btn ghost" data-a="reload">Oberfläche neu laden</button><button class="btn ghost" data-a="mclose">Abbrechen</button></div>`)}
+function toggleSensor(){const fs=filSensor();if(!fs)return toast('Kein Filamentsensor in Klipper konfiguriert');const on=(ST[fs]||{}).enabled===false;
+ G(`SET_FILAMENT_SENSOR SENSOR=${fs.split(' ')[1]} ENABLE=${on?1:0}`).then(()=>toast(on?'Filamentsensor aktiviert':'Filamentsensor deaktiviert'))}
+const TILES=[
+ {id:'z',ic:'probe',t:'Z-Offset',s:'Probe-Assistent & Babystep',fn:zWizard},
+ {id:'mesh',ic:'mesh',t:'Bed Mesh',s:'Messen, Anzeigen, Profile',fn:meshWizard},
+ {id:'tram',ic:'level',t:'Bett ausrichten',s:'Tramming-Assistent',fn:tramWizard},
+ {id:'pid',ic:'flame',t:'PID-Tuning',s:'Düse & Heizbett',fn:pidModal},
+ {id:'save',ic:'save',t:'Speichern',s:'Kalibrierung sichern (SAVE_CONFIG)',fn:()=>ACT.saveCfg()},
+ {id:'sw',ic:'switches',t:'Schalter',s:'Licht, Netzteil, Home Assistant',fn:switchesModal},
+ {id:'sensor',ic:'sensor',t:'Filamentsensor',s:'Ein- / ausschalten',fn:toggleSensor},
+ {id:'cam',ic:'camera',t:'Kamera',s:'Live-Bild',fn:camView},
+ {id:'motors',ic:'motoroff',t:'Motoren aus',s:'Achsen freigeben (M84)',fn:()=>G('M84').then(()=>toast('Motoren deaktiviert'))},
+ {id:'conn',ic:'gear',t:'Einstellungen',s:'Verbindung, Kamera, Licht',fn:settingsView},
+ {id:'restart',ic:'power',t:'Neustart',s:'Firmware / Klipper / Host',fn:restartModal},
+ {id:'info',ic:'info',t:'System',s:'Versionen & Status',fn:sysInfo},
+ {id:'estop',ic:'estop',t:'Not-Aus',s:'Sofort alles stoppen',fn:()=>confirmBox('Not-Aus auslösen? Alle Heizungen und Motoren werden sofort abgeschaltet, danach ist ein Firmware-Neustart nötig.','Not-Aus',()=>api('printer.emergency_stop'),true),cls:'danger'},
+];
+
+/* ================= Aktionen ================= */
+const ACT={
+ go:v=>go(v), g:v=>G(v).catch(()=>{}), files:()=>openFiles(), ovClose:()=>ovClose(),
+ mclose:()=>closeModal(), cfOk:()=>{const c=CB;closeModal();if(c)c()},
+ npKey:v=>{if(v==='C')NP.v='';else if(v==='⌫')NP.v=NP.v.slice(0,-1);else if(NP.v.length<3)NP.v=(NP.v+v).replace(/^0+(?=\d)/,'');set('np-d',(NP.v||'0')+'°C')},
+ npPre:v=>{const c=NP.cb;closeModal();c(+v)},
+ npOk:()=>{if(NP.v===''){closeModal();return}const n=+NP.v;if(n>NP.max)return toast(`Maximal ${NP.max} °C`);const c=NP.cb;closeModal();c(n)},
+ setTemp:v=>setTemp(v),
+ pause:()=>{const ps=ST.print_stats||{};if(ps.state==='paused')api('printer.print.resume');else if(ps.state==='printing')api('printer.print.pause');else if(ps.filename)confirmBox(`„${esc(baseName(ps.filename))}“ erneut drucken?`,'Drucken',()=>api('printer.print.start',{filename:ps.filename}))},
+ stop:()=>{const ps=ST.print_stats||{};if(isPrinting())confirmBox('Druck wirklich abbrechen?','Druck abbrechen',()=>api('printer.print.cancel'),true);else{dismissed=ps.filename+ps.state;schedule()}},
+ skip:()=>skipModal(), tune:()=>tuneModal(), camToggle:()=>{if(!CFG.webcam)return toast('Keine Webcam-URL in den Einstellungen');CAM=!CAM;schedule()},
+ fan:()=>fanModal(), spd:()=>speedModal(), mot:()=>motionModal(), noz:()=>nozModal(), mcu:()=>sensorModal(), bed:()=>setTemp('heater_bed'), light:()=>toggleLight(),
+ fanSet:v=>G(`M106 S${Math.round(v*2.55)}`), spdSet:v=>G(`M220 S${v}`),
+ step:v=>{JS=+v;schedule()}, jog:v=>{const[a,d]=v.split(':');jog(a,+d)}, eLen:v=>{EL=+v;schedule()}, ext:v=>extrude(+v),
+ mat:v=>{CFG.material=v;saveCfgLocal();renderFil()}, col:v=>{CFG.filamentColor=v;saveCfgLocal();schedule();renderFil()},
+ fLoad, fUnload, fChange,
+ fHeat:()=>{const m=MATS[CFG.material]||MATS.PLA;G(`SET_HEATER_TEMPERATURE HEATER=extruder TARGET=${m[0]}\nSET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=${m[1]}`).then(()=>toast(`Heize auf ${m[0]} / ${m[1]} °C`))},
+ fCool:()=>G('TURN_OFF_HEATERS').then(()=>toast('Heizungen aus')),
+ psu:()=>psuToggle(), psuOn:()=>psuOn(), psuOffNow:()=>psuOffNow(),
+ poArm:()=>{PO=true;closeModal();toast('Netzteil schaltet aus, sobald die Düse unter 50 °C ist');schedule()},
+ poCancel:()=>{PO=false;toast('Automatisches Ausschalten abgebrochen');schedule()},
+ swTog:v=>{const s=allSw()[+v];if(!s)return;if(s.k==='psu')return psuToggle();swSet(s,swState(s)!==true).catch(()=>{})},
+ haTest:()=>{const u=CFG.haUrl,t=CFG.haToken;CFG.haUrl=$('#s-ha').value.trim();CFG.haToken=$('#s-hat').value.trim();haLoadEntities(false).finally(()=>{CFG.haUrl=u;CFG.haToken=t})},
+ tile:v=>{const t=TILES.find(x=>x.id===v);if(t){if(v==='conn')closeModal();t.fn()}},
+ zStart, zApply, zStep:v=>{ZS=+v;schedule()}, zMove:v=>G(`TESTZ Z=${(+v*ZS).toFixed(3)}`),
+ zAccept:()=>G('ACCEPT').then(()=>confirmBox('Neuer Z-Offset wurde berechnet. Jetzt dauerhaft speichern? Klipper startet dabei neu.','Speichern',()=>G('SAVE_CONFIG'))),
+ zAbort:()=>G('ABORT'),
+ zAdj:v=>G(`SET_GCODE_OFFSET Z_ADJUST=${v}${homed('z')?' MOVE=1':''}`),
+ zReset:()=>G(`SET_GCODE_OFFSET Z=0${homed('z')?' MOVE=1':''}`),
+ meshRun, meshLoad:v=>G(`BED_MESH_PROFILE LOAD="${v}"`),
+ meshDel:v=>confirmBox(`Profil „${esc(v)}“ löschen? (Wird beim nächsten Speichern dauerhaft entfernt.)`,'Löschen',()=>G(`BED_MESH_PROFILE REMOVE="${v}"`),true),
+ tramMode:v=>{TM=v;schedule()}, tramRun:()=>{if(isPrinting())return toast('Während des Drucks nicht möglich');job('Schrauben werden gemessen',`${homed('xyz')?'':'G28\n'}SCREWS_TILT_CALCULATE`,{msg:'CR-Touch tastet alle Schrauben ab…',autoClose:true})},
+ tramGo:v=>tramGo(+v), tramNext:()=>tramGo((TI+1)%CFG.corners.length), tramUp:()=>G('G91\nG1 Z5 F600\nG90'),
+ pid:v=>{const t=+$('#pid-'+(v==='extruder'?'e':'b')).value;if(!t)return;job(`PID-Tuning ${v==='extruder'?'Düse':'Heizbett'} (${t} °C)`,`PID_CALIBRATE HEATER=${v} TARGET=${t}`,{heater:v,msg:'Dauert einige Minuten – nicht unterbrechen.',doneBtn:{label:'Speichern & Neustart',fn:()=>G('SAVE_CONFIG')}})},
+ skipObj:v=>{const ex=((ST.exclude_object||{}).excluded_objects||[]);if(ex.includes(v))return;
+   confirmBox(`„${esc(v)}“ für den Rest des Drucks überspringen? Das lässt sich nicht rückgängig machen.`,'Überspringen',()=>G(`EXCLUDE_OBJECT NAME="${v}"`).then(()=>skipModal()),true)},
+ saveCfg:()=>{if(isPrinting())return toast('Erst nach dem Druck speichern');confirmBox('Kalibrierung dauerhaft in printer.cfg speichern? Klipper startet dabei neu.','Speichern & Neustart',()=>G('SAVE_CONFIG'))},
+ cfgSave:()=>{const v=id=>$('#'+id).value.trim();CFG.name=v('s-name')||'Ender-3 S1';CFG.host=v('s-host');CFG.port=v('s-port');CFG.webcam=v('s-cam');
+   CFG.haUrl=v('s-ha');CFG.haToken=v('s-hat');CFG.lightSrc=v('s-lsrc');CFG.lightRef=v('s-lref');CFG.lightOnG=v('s-lon');CFG.lightOffG=v('s-loff');CFG.psuSrc=v('s-psrc');CFG.psuRef=v('s-pref');CFG.extras=v('s-ext');CFG.psuAutoOff=$('#s-pao').checked;CFG.demo=false;saveCfgLocal();ovClose();M.connect();toast(CFG.host?'Verbinde…':'Kein Host – Demo-Modus')},
+ demo:()=>{CFG.demo=true;saveCfgLocal();ovClose();closeModal();M.connect();toast('Demo-Modus aktiv')},
+ fwRestart:()=>{closeModal();api('printer.firmware_restart').catch(e=>toast(e.message||'Fehler','err'))},
+ klRestart:()=>{closeModal();api('printer.restart').catch(e=>toast(e.message||'Fehler','err'))},
+ hostReboot:()=>confirmBox('Den Klipper-Host (Raspberry Pi) neu starten?','Neu starten',()=>api('machine.reboot').catch(()=>{}),true),
+ reload:()=>location.reload(),
+ jobBtn:()=>{const f=JOB&&JOB.o.doneBtn&&JOB.o.doneBtn.fn;closeModal();if(f)f()},
+ fileOpen:v=>fileDetail(+v),
+ filePrint:v=>{const f=FL[+v];if(!f)return;api('printer.print.start',{filename:f.path}).then(()=>{closeModal();ovClose();go('home')}).catch(e=>toast(e.message||'Fehler','err'))},
+ fileDel:v=>{const f=FL[+v];confirmBox(`„${esc(baseName(f.path))}“ löschen?`,'Löschen',()=>api('server.files.delete_file',{path:'gcodes/'+f.path}).then(()=>{toast('Gelöscht');openFiles()}),true)},
+ logClear:()=>{LOG.length=0;LOGV++;schedule()},
+ gsend:()=>{const i=$('#gin'),v=i.value.trim();if(!v)return;i.value='';G(v).catch(()=>{})},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const f=ACT[b.dataset.a];if(f)f(b.dataset.v,b,e)});
+const CHG={fan:v=>G(`M106 S${Math.round(v*2.55)}`),spd:v=>G(`M220 S${v}`),flow:v=>G(`M221 S${v}`)};
+document.addEventListener('input',e=>{const t=e.target;if(t.dataset.l){t._drag=1;set(t.dataset.l,t.value+'%')}});
+document.addEventListener('change',e=>{const t=e.target,f=CHG[t.dataset.c];t._drag=0;if(f)f(+t.value)});
+$('#gin').addEventListener('keydown',e=>{if(e.key==='Enter')ACT.gsend()});
+window.addEventListener('resize',schedule);
+document.addEventListener('pointerdown',()=>{try{if(navigator.wakeLock&&!window._wl)navigator.wakeLock.request('screen').then(l=>{window._wl=l;l.addEventListener('release',()=>window._wl=null)}).catch(()=>{})}catch(e){}},{passive:true});
+
+/* ================= Demo-Modus ================= */
+function demoThumb(c1,c2){const s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 220"><g transform="translate(150 120)">${[[-90,10],[-30,-25],[30,10],[90,-25]].map(([x,y],i)=>`<g transform="translate(${x} ${y})"><path d="M-40 0L0-20L40 0L0 20Z" fill="${i%2?c2:c1}"/><path d="M-40 0V14L0 34V20Z" fill="#bbb"/><path d="M40 0V14L0 34V20Z" fill="#999"/><rect x="-14" y="-6" width="28" height="5" fill="#c33" transform="skewY(-26)"/></g>`).join('')}</g></svg>`;return 'data:image/svg+xml,'+encodeURIComponent(s)}
+function demoMesh(){const n=5;return Array.from({length:n},(_,y)=>Array.from({length:n},(_,x)=>+((x-2)*0.03+(y-2)*-0.02+Math.sin(x+y)*0.04+(Math.random()-.5)*0.03).toFixed(3)))}
+const Demo={on:false,t:0,rel:false,files:[],pw:{drucker:'on',absaugung:'off'},
+ haS:{'switch.drucker_steckdose':'on','light.drucker_licht':'on','switch.absaugung':'off','fan.raumluefter':'off'},
+ async ha(path,body){await this.sleep(150);
+  if(path==='/api/')return {message:'API running. (Demo)'};
+  if(path==='/api/states')return Object.entries(this.haS).map(([entity_id,state])=>({entity_id,state,attributes:{friendly_name:cap(entity_id.split('.')[1])}}));
+  let m=path.match(/^\/api\/states\/(.+)$/);if(m){const id=decodeURIComponent(m[1]);if(!(id in this.haS))throw new Error('Home Assistant: HTTP 404 – Entität/Proxy prüfen');return {entity_id:id,state:this.haS[id]}}
+  m=path.match(/turn_(on|off)$/);if(m&&body&&body.entity_id in this.haS){this.haS[body.entity_id]=m[1];return []}
+  throw new Error('Home Assistant: HTTP 400')},
+ start(){if(this.on)return;this.on=true;for(const k in ST)delete ST[k];
+  const now=Date.now()/1000;this.files=[['X-Wing_Bausatz.gcode',now-3600],['Kabelhalter_PETG.gcode',now-86400],['Kalibrierwuerfel.gcode',now-3*86400],['Spulenhalter_S1.gcode',now-6*86400]].map(([path,modified])=>({path,modified,size:1e6}));
+  Object.assign(ST,{webhooks:{state:'ready'},print_stats:{state:'printing',filename:'X-Wing_Bausatz.gcode',print_duration:2140,message:'',info:{current_layer:14,total_layer:101}},
+   virtual_sdcard:{progress:0.14,is_active:true},extruder:{temperature:219.6,target:220},heater_bed:{temperature:59.8,target:60},fan:{speed:1},
+   gcode_move:{speed_factor:1,extrude_factor:1,homing_origin:[0,0,0,0],gcode_position:[110,100,2.8,0]},toolhead:{position:[110,100,2.8,0],homed_axes:'xyz'},
+   'temperature_host raspberry':{temperature:47.2},'temperature_sensor mainboard':{temperature:38.5},'filament_switch_sensor e0_sensor':{filament_detected:true,enabled:true},'output_pin caselight':{value:1},
+   manual_probe:{is_active:false,z_position:null},configfile:{save_config_pending:false},screws_tilt_adjust:{results:{},error:false},
+   bed_mesh:{profile_name:'default',probed_matrix:demoMesh(),profiles:{default:{},PETG_70C:{}}},
+   exclude_object:{objects:[{name:'RUMPF',polygon:[[60,90],[130,90],[130,110],[60,110]]},{name:'FLUEGEL_LINKS',polygon:[[60,120],[110,120],[110,150],[60,150]]},{name:'FLUEGEL_RECHTS',polygon:[[120,120],[170,120],[170,150],[120,150]]},{name:'COCKPIT',polygon:[[140,90],[175,90],[175,110],[140,110]]}],excluded_objects:[],current_object:'RUMPF'}});
+  KL.state='ready';KL.settings={bltouch:{z_offset:2.135,x_offset:-31.8,y_offset:-40.5},extruder:{max_temp:260},heater_bed:{max_temp:100},
+   screws_tilt_adjust:{screw1:[51.8,69.5],screw2:[226.8,69.5],screw3:[226.8,238],screw4:[51.8,238]}};
+  KL.metaFile='';this.t=setInterval(()=>this.tick(),1000);schedule()},
+ stop(){if(!this.on)return;this.on=false;clearInterval(this.t);for(const k in ST)delete ST[k];KL.meta=null;KL.metaFile='';KL.settings={}},
+ tick(){const ps=ST.print_stats;
+  ['extruder','heater_bed'].forEach(h=>{const o=ST[h];o.temperature+=(o.target>0?(o.target-o.temperature)*0.3:(23-o.temperature)*0.05)+(Math.random()-.5)*0.25});
+  if(ps.state==='printing'){ps.print_duration+=1;const v=ST.virtual_sdcard;v.progress=Math.min(1,v.progress+0.0012*ST.gcode_move.speed_factor);
+   ps.info={current_layer:Math.max(1,Math.round(v.progress*101)),total_layer:101};
+   ST.toolhead.position=[60+Math.random()*115,85+Math.random()*70,0.2+v.progress*20,0];
+   if(v.progress>=1){ps.state='complete';ST.extruder.target=0;ST.heater_bed.target=0}}
+  schedule()},
+ wait(h){return new Promise(r=>{const i=setInterval(()=>{const o=ST[h];if(Math.abs(o.temperature-o.target)<2.5){clearInterval(i);r()}},250)})},
+ sleep:ms=>new Promise(r=>setTimeout(r,ms)),
+ async gcode(s){const say=m=>logLine(m);
+  for(const raw of s.split('\n')){const l=raw.trim().toUpperCase();if(!l)continue;
+   const P=k=>{const m=l.match(new RegExp('(?:^|\\s)'+k+'=?(-?[\\d.]+)'));return m?+m[1]:null};
+   const w=l.split(/\s/)[0],th=ST.toolhead,gm=ST.gcode_move,mp=ST.manual_probe;
+   switch(w){
+    case 'SET_HEATER_TEMPERATURE':{const h=(l.match(/HEATER=(\S+)/)||[])[1];if(h&&ST[h.toLowerCase()])ST[h.toLowerCase()].target=P('TARGET')||0;break}
+    case 'M104':ST.extruder.target=P('S')||0;break; case 'M109':ST.extruder.target=P('S')||0;await this.wait('extruder');break;
+    case 'M140':ST.heater_bed.target=P('S')||0;break; case 'M190':ST.heater_bed.target=P('S')||0;await this.wait('heater_bed');break;
+    case 'TURN_OFF_HEATERS':ST.extruder.target=0;ST.heater_bed.target=0;break;
+    case 'M106':ST.fan.speed=(P('S')||0)/255;break; case 'M107':ST.fan.speed=0;break;
+    case 'M220':gm.speed_factor=(P('S')||100)/100;break; case 'M221':gm.extrude_factor=(P('S')||100)/100;break;
+    case 'SET_GCODE_OFFSET':{const za=P('Z_ADJUST'),z=P('Z');if(za!=null)gm.homing_origin[2]=+(gm.homing_origin[2]+za).toFixed(3);else if(z!=null)gm.homing_origin[2]=z;break}
+    case 'SET_PIN':ST['output_pin caselight'].value=P('VALUE')||0;break;
+    case 'PAUSE':case 'M600':ST.print_stats.state='paused';say('// Druck pausiert');break;
+    case 'RESUME':ST.print_stats.state='printing';break;
+    case 'CANCEL_PRINT':ST.print_stats.state='cancelled';ST.extruder.target=0;ST.heater_bed.target=0;break;
+    case 'G28':await this.sleep(1200);th.homed_axes='xyz';th.position=[147,154,10,0];break;
+    case 'G90':this.rel=false;break; case 'G91':this.rel=true;break;
+    case 'G0':case 'G1':{['X','Y','Z'].forEach((a,i)=>{const v=P(a);if(v!=null)th.position[i]=this.rel?th.position[i]+v:v});th.position=th.position.slice();break}
+    case 'M84':th.homed_axes='';break;
+    case 'PROBE_CALIBRATE':await this.sleep(1800);ST.manual_probe={is_active:true,z_position:5};th.position=[117,117,5,0];say('// Manual probe: TESTZ, ACCEPT oder ABORT');break;
+    case 'TESTZ':mp.z_position=Math.max(0,+(mp.z_position+P('Z')).toFixed(3));th.position[2]=mp.z_position;break;
+    case 'ACCEPT':KL.settings.bltouch.z_offset=+(mp.z_position-0.1).toFixed(3);mp.is_active=false;ST.configfile.save_config_pending=true;say(`// bltouch: z_offset: ${KL.settings.bltouch.z_offset}`);break;
+    case 'ABORT':mp.is_active=false;break;
+    case 'Z_OFFSET_APPLY_PROBE':KL.settings.bltouch.z_offset=+(KL.settings.bltouch.z_offset-gm.homing_origin[2]).toFixed(3);ST.configfile.save_config_pending=true;say(`// bltouch: z_offset: ${KL.settings.bltouch.z_offset}`);break;
+    case 'SCREWS_TILT_CALCULATE':{await this.sleep(2500);const r=()=>{const m=Math.floor(Math.random()*25);return `00:${String(m).padStart(2,'0')}`};
+     ST.screws_tilt_adjust={error:false,results:{screw1:{z:2.1,sign:'CW',adjust:'00:00',is_base:true},screw2:{z:2.15,sign:'CW',adjust:r(),is_base:false},screw3:{z:2.0,sign:'CCW',adjust:r(),is_base:false},screw4:{z:2.08,sign:'CCW',adjust:r(),is_base:false}}};break}
+    case 'BED_MESH_CALIBRATE':await this.sleep(3000);ST.bed_mesh=Object.assign({},ST.bed_mesh,{profile_name:'default',probed_matrix:demoMesh()});ST.configfile.save_config_pending=true;break;
+    case 'BED_MESH_PROFILE':{const n=(raw.match(/(LOAD|REMOVE|SAVE)="?([^"]+)"?/i)||[]);if(/LOAD/i.test(n[1]))ST.bed_mesh.profile_name=n[2];if(/REMOVE/i.test(n[1])){delete ST.bed_mesh.profiles[n[2]];ST.configfile.save_config_pending=true}break}
+    case 'BED_MESH_CLEAR':ST.bed_mesh=Object.assign({},ST.bed_mesh,{profile_name:'',probed_matrix:[]});break;
+    case 'SAVE_CONFIG':await this.sleep(800);ST.configfile.save_config_pending=false;say('// Konfiguration gespeichert, Klipper startet neu');break;
+    case 'EXCLUDE_OBJECT':{const n=(raw.match(/NAME="?([^"\s]+)"?/i)||[])[1];if(n)ST.exclude_object.excluded_objects=[...ST.exclude_object.excluded_objects,n];break}
+    case 'LOAD_FILAMENT':ST.extruder.target=P('TEMP')||210;await this.wait('extruder');await this.sleep(2500);say('// Filament geladen');break;
+    case 'UNLOAD_FILAMENT':ST.extruder.target=P('TEMP')||210;await this.wait('extruder');await this.sleep(2000);say('// Filament entladen');break;
+    case 'PID_CALIBRATE':{const h=(l.match(/HEATER=(\S+)/)||[])[1].toLowerCase();ST[h].target=P('TARGET');await this.wait(h);await this.sleep(3000);ST[h].target=0;ST.configfile.save_config_pending=true;say('// PID parameters: pid_Kp=22.865 pid_Ki=1.292 pid_Kd=101.178');break}
+    case 'SET_FILAMENT_SENSOR':ST['filament_switch_sensor e0_sensor'].enabled=!!P('ENABLE');break;
+    default:break;
+   }}
+  schedule();await this.sleep(120);return 'ok'},
+ async api(m,p){await this.sleep(80);const ps=ST.print_stats;
+  switch(m){
+   case 'printer.print.pause':ps.state='paused';break; case 'printer.print.resume':ps.state='printing';break;
+   case 'printer.print.cancel':ps.state='cancelled';ST.extruder.target=0;ST.heater_bed.target=0;break;
+   case 'printer.print.start':Object.assign(ps,{state:'printing',filename:p.filename,print_duration:0,info:{current_layer:0,total_layer:101}});ST.virtual_sdcard.progress=0;ST.extruder.target=210;ST.heater_bed.target=60;ST.exclude_object.excluded_objects=[];dismissed='';break;
+   case 'server.files.list':return this.files;
+   case 'server.files.metadata':{const i=this.files.findIndex(f=>f.path===p.filename);const cs=[['#e9e9e9','#d93a3a'],['#45b35a','#2f7de1'],['#f08a24','#f2d43a'],['#9aa0a6','#202124']][Math.max(0,i)%4];
+    return {filename:p.filename,estimated_time:[25920,5400,1100,9800][Math.max(0,i)%4],filament_total:[18400,4200,900,8800][Math.max(0,i)%4],filament_weight_total:[54.8,12.6,2.7,26.3][Math.max(0,i)%4],layer_height:0.2,first_layer_height:0.2,object_height:20.2,filament_type:i===1?'PETG':'PLA',slicer:'OrcaSlicer',_thumb:demoThumb(cs[0],cs[1])}}
+   case 'server.files.delete_file':this.files=this.files.filter(f=>'gcodes/'+f.path!==p.path);break;
+   case 'server.gcode_store':return {gcode_store:[]};
+   case 'printer.info':return {state:'ready',software_version:'Demo',hostname:'demo'};
+   case 'server.info':return {klippy_state:'ready',moonraker_version:'Demo'};
+   case 'printer.emergency_stop':toast('Demo: Not-Aus ausgelöst');break;
+   case 'machine.device_power.devices':return {devices:Object.keys(this.pw).map(device=>({device,status:this.pw[device],locked_while_printing:device==='drucker',type:'homeassistant'}))};
+   case 'machine.device_power.post_device':{if(p.device==='drucker'&&isPrinting())throw {message:'Gerät ist während des Drucks gesperrt'};this.pw[p.device]=p.action;return {[p.device]:p.action}}
+  }
+  schedule();return {}}
+};
+
+/* ================= Init ================= */
+(function init(){
+ const navIc=['home','control','spool','hex','chat'];document.querySelectorAll('.nav').forEach((b,i)=>b.insertAdjacentHTML('afterbegin',ic(navIc[i])));
+ document.querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
+ $('#ic-files').innerHTML=ic('cube');$('#p-noth').innerHTML=ic('cube');$('#cam-tg').innerHTML=ic('camera');
+ $('#st-noz-i').innerHTML=ic('nozzle');$('#st-bed-i').innerHTML=ic('bedheat');$('#st-fil-i').innerHTML=ic('spool');$('#st-con-i').innerHTML=ic('wifi');$('#st-psu-i').innerHTML=ic('power');
+ $('#b-skip').innerHTML=`${ic('skip')}<span>Überspringen</span>`;$('#b-tune').innerHTML=`${ic('tune')}<span>Feinjust.</span>`;
+ $('#hero-img').innerHTML=enderSVG();$('#pr-img').innerHTML=enderSVG({badges:true});$('#ctl-img').insertAdjacentHTML('afterbegin',enderSVG({lead:true}));
+ $('#tiles').innerHTML=TILES.map(t=>`<button class="card tile tap ${t.cls||''}" id="tile-${t.id}" data-a="tile" data-v="${t.id}"><span class="ico">${ic(t.ic)}</span><b>${t.t}</b><span class="sub">${t.s}</span>${t.id==='save'?'<span class="badge" hidden>!</span>':''}</button>`).join('');
+ $('#quick').innerHTML=['G28','M84','QUERY_PROBE','QUERY_ENDSTOPS','GET_POSITION','BED_MESH_OUTPUT','HELP'].map(c=>`<button class="chip tap" data-a="g" data-v="${c}">${c}</button>`).join('');
+ M.connect();schedule();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+services:
+  s1-touch:
+    image: nginx:1.27-alpine
+    container_name: s1-touch
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    env_file: .env
+    environment:
+      NGINX_ENVSUBST_FILTER: "MOONRAKER_HOST|HA_URL|HA_TOKEN|RESOLVER"
+      RESOLVER: "127.0.0.11"            # Docker-interner DNS
+    volumes:
+      - ../web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
