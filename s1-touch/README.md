@@ -124,6 +124,7 @@ Läuft im **selben Container** auf Port **8081**, als installierbare Web-App (PW
 
 ## Installation
 
+0. **Debian 13 nötig:** Aktuelle OrcaSlicer-Versionen gibt es nur noch für Ubuntu 24.04 – das läuft auf Debian 13, nicht auf Debian 12. Ein Debian-12-Container lässt sich mit `bash s1-touch/deploy/upgrade-debian13.sh` anheben (vorher Snapshot machen, danach `pct reboot 120`).
 1. **Container vergrößern** (auf dem Proxmox-Host – OrcaSlicer braucht RAM und Platz):
    ```bash
    pct set 120 --memory 3072 --swap 2048

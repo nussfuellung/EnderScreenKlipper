@@ -293,7 +293,7 @@ const IC={
 const ic=(n,c='')=>`<svg class="i ${c}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
 
 /* ===================== Config ===================== */
-const DEF={host:'proxy',port:'',webcam:'',theme:'auto',demo:false,name:'Ender-3 S1',haUrl:'',haToken:'',lightSrc:'auto',lightRef:'',psuSrc:'auto',psuRef:'',notify:false,last:{},filColor:'#3b82f6'};
+const DEF={host:'proxy',port:'',webcam:'',theme:'auto',demo:false,name:'Ender-3 S1',haUrl:'proxy',haToken:'',lightSrc:'auto',lightRef:'',psuSrc:'auto',psuRef:'',notify:false,last:{},filColor:'#3b82f6'};
 let CFG=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('s1mobile')||'{}')}catch(e){}return Object.assign({},DEF,s)})();
 const FILE=location.protocol==='file:';
 if(FILE)CFG.demo=true;
@@ -401,6 +401,10 @@ function swSet(s,on){const r=s.ref;
  if(s.src==='ha'){HA[r]=on?'on':'off';schedule();return haFetch('/api/services/homeassistant/'+(on?'turn_on':'turn_off'),{entity_id:r}).then(()=>setTimeout(pollHA,900)).catch(e=>{toast(e.message,'err');throw e})}
  return Promise.reject()}
 
+let PWT=0,PWN=0,PSU_LAST=null;
+const klBroken=()=>M.ok&&['shutdown','error'].includes(KL.state);
+function afterPowerOn(){if(demoPr())return;PWN=0;clearTimeout(PWT);PWT=setTimeout(tryReconnect,6000)}
+function tryReconnect(){PWN++;if(klBroken())api('printer.firmware_restart').catch(()=>{});if(PWN<6&&!(M.ok&&M.ready))PWT=setTimeout(tryReconnect,7000)}
 /* ===================== Ender-Illustration ===================== */
 function enderSVG(){const fr='fill="url(#gFrame)" stroke="rgba(255,255,255,.17)"';
  return `<svg class="ender" viewBox="0 -62 420 404" preserveAspectRatio="xMidYMid meet">
@@ -428,6 +432,7 @@ function render(){raf=0;
  if(ps.filename&&ps.filename!==KL.metaFile)loadMeta(ps.filename);
  if(prevState==='printing'&&['complete','error','cancelled'].includes(st))notifyDone(st,ps.filename);
  prevState=st;
+ {const pv0=swState(psuCfg());if(PSU_LAST===false&&pv0===true)afterPowerOn();if(pv0!==null)PSU_LAST=pv0}
  $('#dot-pr').hidden=!(st==='error'||(st==='paused'));
  $('#dot-pj').hidden=!PJ.jobs.some(j=>j.state==='running'||j.state==='queued');
  if(TAB==='printer')renderPrinter();
@@ -475,7 +480,7 @@ function renderPrinter(){
  const PC=psuCfg(),pv=swState(PC);$('#q-psu').hidden=!PC;$('#q-psu').classList.toggle('on',pv===true);
  // Druckkarte
  const pc=$('#pcard'),printing=st==='printing'||st==='paused';
- if(!online()){html(pc,'off'+M.ok+KL.state+(pv===false),`<div class="thumb">${ic('printer')}</div><div style="flex:1;min-width:0"><b>${!M.ok?'Nicht verbunden':pv===false?'Drucker ist aus':'Klipper: '+esc(KL.state||'startet')}</b><div class="sub">${!M.ok?'Moonraker nicht erreichbar – Verbindung unter „Ich“ prüfen':esc(KL.msg||'')}</div></div>${PC&&pv===false?`<button class="btn sm pri" data-a="psuOn">Einschalten</button>`:''}`)}
+ if(!online()){html(pc,'off'+M.ok+KL.state+(pv===false),`<div class="thumb">${ic('printer')}</div><div style="flex:1;min-width:0"><b>${!M.ok?'Nicht verbunden':pv===false?'Drucker ist aus':'Klipper: '+esc(KL.state||'startet')}</b><div class="sub">${!M.ok?'Moonraker nicht erreichbar – Verbindung unter „Ich“ prüfen':esc(KL.msg||'')}</div></div>${PC&&pv===false?`<button class="btn sm pri" data-a="psuOn">Einschalten</button>`:klBroken()?`<button class="btn sm pri" data-a="fwRestart">Neu verbinden</button>`:''}`)}
  else if(printing||['complete','cancelled','error'].includes(st)&&ps.filename){
   const key='p'+st+ps.filename;
   if(html(pc,key,`<div class="thumb" id="p-th">${ic('cube')}</div><div style="flex:1;min-width:0"><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="p-fn"></b>
@@ -724,7 +729,8 @@ const ACT={
  fLoad:()=>{if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');G(`LOAD_FILAMENT TEMP=${MATS[FMAT][0]}`).then(()=>toast('Filament geladen')).catch(()=>{});toast('Heizt auf und lädt…')},
  fUnload:()=>{if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');G(`UNLOAD_FILAMENT TEMP=${MATS[FMAT][0]}`).then(()=>toast('Filament entladen')).catch(()=>{});toast('Heizt auf und entlädt…')},
  light:()=>{const s=lightCfg();if(s)swSet(s,swState(s)!==true).catch(()=>{})}, psu:()=>psuToggle(),
- psuOn:()=>{const p=psuCfg();if(p)swSet(p,true).then(()=>{toast('Netzteil an – Drucker startet');if(!demoPr())setTimeout(()=>{if(M.ok&&KL.state!=='ready')api('printer.firmware_restart').catch(()=>{})},8000)}).catch(()=>{})},
+ psuOn:()=>{const p=psuCfg();if(p)swSet(p,true).then(()=>{toast('Netzteil an – Drucker startet');afterPowerOn()}).catch(()=>{})},
+ fwRestart:()=>{api('printer.firmware_restart').then(()=>toast('Verbinde neu …')).catch(e=>toast(e.message||'Fehler','err'))},
  camFull:()=>{const c=$('#cam');if(c.requestFullscreen)c.requestFullscreen().catch(()=>{});else if(c.webkitRequestFullscreen)c.webkitRequestFullscreen()},
  pause:()=>{const s=(ST.print_stats||{}).state;api(s==='paused'?'printer.print.resume':'printer.print.pause').catch(e=>toast(e.message,'err'))},
  cancel:()=>confirmS('Druck wirklich abbrechen?','Abbrechen',()=>api('printer.print.cancel').catch(e=>toast(e.message,'err')),true),

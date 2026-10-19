@@ -26,7 +26,7 @@ window.S1_CONFIG = {
   psuAutoOff: false,                   // Netzteil nach Druckende aus, sobald Düse < 50 °C
   extras: "",                          // weitere Schalter: "ha:switch.absaugung=Absaugung, mr:enclosure"
   // Home Assistant direkt: "proxy" = über nginx (/ha, Token liegt im Server) oder "http://ha:8123" + Token
-  haUrl: "", haToken: "",
+  haUrl: "proxy", haToken: "",
   // Papier-Tramming: Düsenpositionen über den Bettschrauben (aus Klippers Ender-3-S1-Referenzconfig [bed_screws])
   corners: [[20,29],[195,29],[195,198],[20,198]]
 };
@@ -427,6 +427,7 @@ label.f small{color:var(--sub)}
   <h3 id="cn-t">Verbinde…</h3>
   <p class="sub" id="cn-m"></p>
   <button class="btn pri big" id="cn-psu" data-a="psuOn" hidden>Drucker einschalten</button>
+  <button class="btn pri big" id="cn-fw" data-a="fwRestart" hidden>Drucker neu verbinden</button>
   <button class="btn big" id="cn-light" data-a="light" hidden>Licht <span id="cn-lv"></span></button>
   <div class="row"><button class="btn" data-a="fwRestart">Firmware-Neustart</button><button class="btn" data-a="klRestart">Klipper-Neustart</button></div>
   <div class="row"><button class="btn ghost" data-a="tile" data-v="conn">Einstellungen</button><button class="btn ghost" data-a="demo">Demo-Modus</button></div>
@@ -499,7 +500,7 @@ const IC={
 const ic=(n,cls='')=>`<svg class="i ${cls}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
 
 /* ================= Config ================= */
-const DEF={name:'Ender-3 S1',host:'',port:7125,webcam:'',lightSrc:'auto',lightRef:'',lightOnG:'',lightOffG:'',psuSrc:'auto',psuRef:'',psuAutoOff:false,extras:'',haUrl:'',haToken:'',demo:false,material:'PLA',filamentColor:'#e9e9e9',corners:[[20,29],[195,29],[195,198],[20,198]]};
+const DEF={name:'Ender-3 S1',host:'',port:7125,webcam:'',lightSrc:'auto',lightRef:'',lightOnG:'',lightOffG:'',psuSrc:'auto',psuRef:'',psuAutoOff:false,extras:'',haUrl:'proxy',haToken:'',demo:false,material:'PLA',filamentColor:'#e9e9e9',corners:[[20,29],[195,29],[195,198],[20,198]]};
 let CFG=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('s1touch')||'{}')}catch(e){}return Object.assign({},DEF,window.S1_CONFIG||{},s)})();
 (()=>{const q=new URLSearchParams(location.search);if(q.get('host'))CFG.host=q.get('host');if(q.get('port'))CFG.port=q.get('port');if(q.get('demo'))CFG.demo=q.get('demo')==='1'})();
 function saveCfgLocal(){try{localStorage.setItem('s1touch',JSON.stringify(CFG))}catch(e){}}
@@ -739,8 +740,14 @@ function psuToggle(){const p=psuCfg();if(!p)return toast('Kein Netzteil-Schalter
   <div class="row"><button class="btn" data-a="mclose">Abbrechen</button><button class="btn pri" data-a="poArm">Ausschalten bei &lt; 50 °C</button></div><div class="row"><button class="btn red" data-a="psuOffNow">Sofort ausschalten</button></div>`);
  confirmBox('Drucker-Netzteil ausschalten?','Ausschalten',psuOffNow,true)}
 function psuOffNow(){const p=psuCfg();PO=false;closeModal();if(p)swSet(p,false).then(()=>toast('Netzteil ausgeschaltet')).catch(()=>{})}
-function psuOn(){const p=psuCfg();if(!p)return;swSet(p,true).then(()=>{toast('Netzteil eingeschaltet – Drucker startet');
- if(live())setTimeout(()=>{if(M.ok&&KL.state!=='ready')api('printer.firmware_restart').catch(()=>{})},8000)}).catch(()=>{})}
+function psuOn(){const p=psuCfg();if(!p)return;swSet(p,true).then(()=>{toast('Netzteil eingeschaltet – Drucker startet');afterPowerOn()}).catch(()=>{})}
+/* Nach dem Einschalten (egal ob per App, HA oder Schalter) hat Klipper das Mainboard verloren
+   ("Lost communication with MCU") → automatisch FIRMWARE_RESTART, mit Wiederholungen bis es klappt. */
+let PWT=0,PWN=0,PSU_LAST=null;
+function klBroken(){return M.ok&&['shutdown','error'].includes(KL.state)}
+function afterPowerOn(){if(!live())return;PWN=0;clearTimeout(PWT);PWT=setTimeout(tryReconnect,6000)}
+function tryReconnect(){PWN++;if(klBroken())api('printer.firmware_restart').catch(()=>{});
+ if(PWN<6&&!(M.ok&&M.ready))PWT=setTimeout(tryReconnect,7000)}
 function switchesModal(){modal(`<h3>Schalter</h3><div id="swl"></div><p class="sub">Quellen und Home-Assistant-Verbindung legst du unter <b>Einstellungen</b> fest. Moonraker-<span class="mono">[power]</span>-Geräte erscheinen automatisch.</p>
  <div class="row"><button class="btn ghost" data-a="tile" data-v="conn">Einstellungen</button><button class="btn" data-a="mclose">Schließen</button></div>`,()=>{
  const L=allSw(),key=L.map(s=>s.src+s.ref+swState(s)).join('|');
@@ -763,6 +770,7 @@ function render(){raf=0;
  if(st==='complete'&&prevState==='printing'&&CFG.psuAutoOff&&psuCfg()){PO=true;toast('Druck fertig – Netzteil schaltet nach dem Abkühlen aus')}
  if(st==='printing')PO=false;
  prevState=st;
+ {const pv0=swState(psuCfg());if(PSU_LAST===false&&pv0===true)afterPowerOn();if(pv0!==null)PSU_LAST=pv0}
  if(PO){const p=psuCfg(),t=(ST.extruder||{}).temperature;if(!p||swState(p)===false)PO=false;else if(!isPrinting()&&t!=null&&t<50&&(M.ready||!live()))psuOffNow()}
  $('#po-chip').hidden=!PO;if(PO)set('po-chip',`Netzteil aus bei < 50 °C (jetzt ${r0((ST.extruder||{}).temperature)} °C) · Abbrechen`);
  const printing=st==='printing'||st==='paused';
@@ -823,8 +831,11 @@ function renderConn(){const show=live()&&!(M.ok&&M.ready);$('#conn').hidden=!sho
  const p=psuCfg(),off=!!p&&swState(p)===false&&(p.src==='ha'||M.ok),l=lightCfg(),lv=swState(l);
  $('#cn-psu').hidden=!off;$('#cn-spin').hidden=off;
  $('#cn-light').hidden=!(l&&(l.src==='ha'||(l.src==='moonraker'&&M.ok)));set('cn-lv',lv===true?'ausschalten':'einschalten');
+ $('#cn-fw').hidden=off||!klBroken();
  if(off){set('cn-t','Drucker ist ausgeschaltet');set('cn-m','Netzteil über '+(p.src==='ha'?'Home Assistant':'Moonraker')+' einschalten – Klipper verbindet sich danach automatisch.');return}
  if(!M.ok){set('cn-t','Verbinde mit Moonraker…');set('cn-m',M.base().ws+'/websocket')}
+ else if(klBroken()&&/lost communication|unable to connect|mcu/i.test(KL.msg||'')){set('cn-t','Keine Verbindung zum Drucker-Mainboard');
+  set('cn-m',(PWT&&PWN<6?'Verbinde automatisch neu … ':'Meist, weil der Drucker aus war. ')+'(Klipper: '+(KL.msg||'').split('\n')[0]+')')}
  else{set('cn-t',KL.state==='startup'?'Klipper startet…':'Klipper: '+(KL.state||'nicht bereit'));set('cn-m',KL.msg||'')}}
 
 /* ================= Navigation ================= */

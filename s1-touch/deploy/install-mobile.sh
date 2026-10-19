@@ -3,6 +3,7 @@
 #   sudo bash deploy/install-mobile.sh <Klipper-IP> [Home-Assistant-URL] [HA-Token]
 # Optional: ORCA_URL=<AppImage-URL> für eine bestimmte OrcaSlicer-Version, MOBILE_PORT=8081
 set -euo pipefail
+trap 'echo -e "\n\033[1;31mFEHLER in Zeile $LINENO – Abbruch.\033[0m Bitte die Ausgabe darüber prüfen."' ERR
 export MOONRAKER_HOST="${1:?Bitte IP des Klipper-Hosts angeben}"
 export HA_URL="${2:-}" HA_TOKEN="${3:-}"
 export MOBILE_PORT="${MOBILE_PORT:-8081}"
@@ -29,14 +30,25 @@ done
 say "OrcaSlicer herunterladen"
 if [ ! -x /opt/orcaslicer/AppRun ] || [ "${ORCA_UPDATE:-0}" = 1 ]; then
   if [ -z "${ORCA_URL:-}" ]; then
+    ARCH=$(uname -m)                      # x86_64 oder aarch64
     GLIBC=$(ldd --version | awk 'NR==1{print $NF}')
-    REL=$(curl -fsSL https://api.github.com/repos/OrcaSlicer/OrcaSlicer/releases/latest)
+    REL=$(curl -fsSL https://api.github.com/repos/OrcaSlicer/OrcaSlicer/releases/latest) || { echo "GitHub nicht erreichbar"; exit 1; }
     ORCA_VER=$(echo "$REL" | jq -r .tag_name)
-    # Ubuntu-22.04-Build läuft auf Debian 12 (glibc 2.36); 24.04-Build braucht glibc ≥ 2.39
-    ORCA_URL=$(echo "$REL" | jq -r '.assets[].browser_download_url' | grep -iE 'linux.*appimage$' | grep -i 2204 | head -1)
-    if [ -z "$ORCA_URL" ] || awk "BEGIN{exit !($GLIBC >= 2.39)}"; then
-      ORCA_URL=$(echo "$REL" | jq -r '.assets[].browser_download_url' | grep -iE 'linux.*appimage$' | grep -i "${ORCA_PREFER:-2404}" | head -1)
-      [ -z "$ORCA_URL" ] && ORCA_URL=$(echo "$REL" | jq -r '.assets[].browser_download_url' | grep -iE 'linux.*appimage$' | head -1)
+    ASSETS=$(echo "$REL" | jq -r '.assets[].browser_download_url' | grep -iE 'linux.*\.appimage$' || true)
+    if [ "$ARCH" = "aarch64" ]; then ASSETS=$(echo "$ASSETS" | grep -i aarch64 || true); else ASSETS=$(echo "$ASSETS" | grep -vi aarch64 || true); fi
+    echo "OrcaSlicer $ORCA_VER – verfügbar:"; echo "$ASSETS" | sed 's#.*/#  #'
+    ORCA_URL=$(echo "$ASSETS" | grep -i 2204 | head -1 || true)
+    if [ -z "$ORCA_URL" ]; then
+      ORCA_URL=$(echo "$ASSETS" | grep -i 2404 | head -1 || true)
+      [ -z "$ORCA_URL" ] && ORCA_URL=$(echo "$ASSETS" | head -1)
+      if [ -n "$ORCA_URL" ] && echo "$ORCA_URL" | grep -qi 2404 && ! awk "BEGIN{exit !($GLIBC >= 2.39)}"; then
+        echo
+        echo "OrcaSlicer $ORCA_VER gibt es nur noch für Ubuntu 24.04 (braucht glibc ≥ 2.39)."
+        echo "Dieser Container hat glibc $GLIBC ($(. /etc/os-release; echo $PRETTY_NAME)) – zu alt."
+        echo "Lösung: Container auf Debian 13 aktualisieren und dieses Skript erneut starten:"
+        echo "    bash $(dirname "$0")/upgrade-debian13.sh"
+        trap - ERR; exit 2
+      fi
     fi
   fi
   [ -z "$ORCA_URL" ] && { echo "Keine OrcaSlicer-AppImage gefunden – ORCA_URL=... setzen"; exit 1; }
