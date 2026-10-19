@@ -7,11 +7,16 @@ s1-touch/
 ├── web/index.html            ← die komplette App
 ├── klipper/s1_touch.cfg      ← Makros & Sektionen für Klipper
 ├── klipper/moonraker_power.conf ← optional: Netzteil/Licht über Moonraker + HA
+├── mobile/                   ← Handy-App „S1 Mobile“ (PWA)
+├── server/s1mobile.py        ← Slicer-/Printables-Backend für die Handy-App
 └── deploy/
     ├── docker-compose.yml    ← Variante A: Docker (nginx + Proxy)
     ├── .env.example          ← Klipper-IP, Home-Assistant-URL & Token
     ├── nginx.conf
-    └── install-lxc.sh        ← Variante B: Debian-LXC ohne Docker
+    ├── install-lxc.sh        ← Variante B: Debian-LXC ohne Docker
+    ├── install-mobile.sh     ← Handy-App + OrcaSlicer im selben LXC (Port 8081)
+    ├── nginx-mobile.conf, s1-mobile.service
+    └── update.sh             ← git pull + beide Apps aktualisieren
 ```
 
 ## Funktionen
@@ -101,3 +106,63 @@ Der Token bleibt im Proxy, das Tablet sieht ihn nie. Der Proxy lässt nur Zustä
 - Kalibrier-Ergebnisse (Z-Offset, Mesh, PID) liegen bis zum **Speichern** nur im RAM. Ein grüner Hinweis oben rechts erinnert daran; *Speichern* führt `SAVE_CONFIG` aus (Klipper startet neu).
 - Jog-Tasten funktionieren erst nach dem Referenzieren und sind während des Drucks gesperrt.
 - Für die Restzeit nutzt die App Fortschritt + Slicer-Schätzung; Schichtanzeige über `SET_PRINT_STATS_INFO` (Orca/Prusa: in den Schichtwechsel-G-Code `SET_PRINT_STATS_INFO CURRENT_LAYER={layer_num + 1}` und in den Start-G-Code `SET_PRINT_STATS_INFO TOTAL_LAYER=[total_layer_count]`), sonst wird sie aus der Z-Höhe geschätzt.
+
+
+---
+
+# S1 Mobile – Handy-App (wie Bambu Handy)
+
+Läuft im **selben Container** auf Port **8081**, als installierbare Web-App (PWA).
+
+| Tab | Inhalt |
+|---|---|
+| **Drucker** | Live-Kamera (oder animierter Ender-3 S1), Druckfortschritt mit Vorschaubild, Pause/Stopp, Temperaturen, Lüfter, Tempo, Licht, Netzteil, Bewegung, Filament laden/entladen, Druckdateien, Druckverlauf |
+| **Entdecken** | Printables durchsuchen (Beliebt/Neu/Top), Modell-Details mit Bildern und Dateien → **„Slicen“** lädt die Datei auf deinen Server |
+| **Projekte** | Eigene Modelle (STL, 3MF, OBJ, STEP, ZIP) hochladen, Slice-Aufträge, fertige G-Codes drucken |
+| **Slicen** | 3D-Vorschau auf dem 220×220-Bett, Profil (Drucker/Qualität/Filament), Stützen Aus/Normal/Baum + „nur auf Druckbett“, Infill, Schichthöhe, Wände, Brim, Größe, Auto-Ausrichten, Temperaturen → **OrcaSlicer-CLI** auf dem Server → Druckzeit/Filament → **Drucken** oder nur **Senden** |
+| **Ich** | Profil vom PC importieren, Verbindung, Kamera, HA-Licht/-Netzteil, Hell/Dunkel, Benachrichtigung bei Druckende, Demo-Modus |
+
+## Installation
+
+1. **Container vergrößern** (auf dem Proxmox-Host – OrcaSlicer braucht RAM und Platz):
+   ```bash
+   pct set 120 --memory 3072 --swap 2048
+   pct resize 120 rootfs +6G
+   ```
+2. **Im Container:**
+   ```bash
+   cd /root/esk && git pull
+   bash s1-touch/deploy/install-mobile.sh 192.168.188.XX                     # nur Klipper
+   bash s1-touch/deploy/install-mobile.sh 192.168.188.XX http://HA-IP:8123 'TOKEN'   # mit Home Assistant
+   ```
+   Das Skript lädt die aktuelle OrcaSlicer-AppImage von GitHub, entpackt sie nach `/opt/orcaslicer`, richtet den Dienst `s1-mobile` ein und startet die App auf `http://<container-ip>:8081/`.
+3. **Updates** später: `bash /root/esk/s1-touch/deploy/update.sh`. OrcaSlicer neu laden: `ORCA_UPDATE=1 bash …/install-mobile.sh …`.
+
+## Profil vom PC übernehmen
+
+Die App nutzt deine **eigenen Orca-Profile** (mit Klipper-Startcode `PRINT_START`). Bis dahin stehen die Orca-Systemprofile für den Ender-3 S1 bereit – die haben aber Marlin-Startcode.
+
+- **Einmalig, am einfachsten:** In OrcaSlicer am PC Drucker + Prozess + Filament(e) wählen → *Datei → Projekt speichern* → die `.3mf` in der App unter *Ich → Profil importieren* hochladen. Alles wird vollständig übernommen (auch mehrere Filamente).
+- **Alle eigenen Profile:** *Datei → Exportieren → Preset-Bundle exportieren* → `.orca_printer` importieren. Vererbung von Systemprofilen löst der Server selbst auf.
+- **Automatisch synchron:** Den Orca-Benutzerordner (`%APPDATA%\OrcaSlicer\user`) per **Syncthing** oder SMB-Freigabe nach `/var/lib/s1-mobile/profiles/sync` spiegeln – Änderungen am PC sind sofort in der App.
+
+## Printables
+
+Printables hat keine offizielle API. Die App nutzt dieselbe Schnittstelle wie die Website (über den Server, nicht vom Handy aus). Das kann sich jederzeit ändern – dann funktionieren Suche/Download nicht mehr, alles andere schon. Lizenz der Modelle beachten. Als installierte App kannst du Printables-Links per **Teilen → S1 Mobile** öffnen.
+
+## Als App installieren, HTTPS & unterwegs
+
+- Browser-Apps lassen sich nur über **HTTPS** richtig installieren (Service Worker, Teilen-Ziel, Benachrichtigungen). Per `http://` funktioniert alles, nur eben als Lesezeichen.
+- Mit deinem **Caddy**-Container geht HTTPS am einfachsten: z. B. `s1.deine-domain.de` mit DNS-Challenge oder ein interner Name mit `tls internal` (dann das Caddy-Root-Zertifikat aufs Handy).
+  ```
+  s1.deine-domain.de {
+      reverse_proxy 192.168.188.71:8081
+  }
+  ```
+- **Von unterwegs** nicht per Portfreigabe ins Internet stellen (Moonraker hat dann keinen Schutz), sondern über **Tailscale** oder **WireGuard** ins Heimnetz.
+
+## Fehlersuche
+
+- `journalctl -u s1-mobile -f` – Server-Log; schlägt Slicen fehl, zeigt die App das Orca-Log unter *Projekte → Auftrag antippen*.
+- „OrcaSlicer startet nicht“ beim Installieren: fehlende Bibliotheken werden angezeigt → mit `apt install` nachinstallieren.
+- Moonraker lehnt den Upload ab → Container-IP unter `trusted_clients` in `moonraker.conf` eintragen.

@@ -1,0 +1,18 @@
+[Unit]
+Description=S1 Mobile Backend (Slicer, Printables, Profile)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=s1mobile
+Group=s1mobile
+EnvironmentFile=/etc/s1-mobile.env
+ExecStart=/usr/bin/python3 /opt/s1-mobile/s1mobile.py
+Restart=on-failure
+RestartSec=3
+Nice=5
+# Slicen braucht RAM – Speicher-Limit, damit der Container stabil bleibt
+MemoryMax=85%
+
+[Install]
+WantedBy=multi-user.target

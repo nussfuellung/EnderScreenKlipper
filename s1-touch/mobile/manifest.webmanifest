@@ -1,0 +1,28 @@
+{
+  "name": "S1 Mobile – Ender-3 S1",
+  "short_name": "S1 Mobile",
+  "description": "Drucker-App für den Ender-3 S1 mit Klipper: Steuerung, Printables, Slicen.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f3f5",
+  "theme_color": "#f2f3f5",
+  "lang": "de",
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Drucker", "url": "/?tab=printer"},
+    {"name": "Projekte", "url": "/?tab=projects"},
+    {"name": "Entdecken", "url": "/?tab=discover"}
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {"title": "title", "text": "text", "url": "url"}
+  }
+}

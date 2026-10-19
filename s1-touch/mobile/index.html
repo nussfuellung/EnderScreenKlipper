@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f3f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1012" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="S1 Mobile">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>S1 Mobile</title>
+<style>
+:root{--bg:#f2f3f5;--card:#fff;--card2:#f4f5f7;--txt:#15171a;--sub:#6b7280;--line:rgba(0,0,0,.07);--acc:#1f6feb;--accT:#fff;--accS:rgba(31,111,235,.1);--ok:#16a34a;--warn:#d97706;--err:#e5484d;--sh:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.05);--r:16px;--bar:62px;--glass:rgba(255,255,255,.86)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1012;--card:#1b1d21;--card2:#25282d;--txt:#eef0f3;--sub:#9aa1ab;--line:rgba(255,255,255,.08);--acc:#4c8dff;--accS:rgba(76,141,255,.15);--sh:none;--glass:rgba(22,24,27,.88)}}
+:root[data-theme=dark]{--bg:#0f1012;--card:#1b1d21;--card2:#25282d;--txt:#eef0f3;--sub:#9aa1ab;--line:rgba(255,255,255,.08);--acc:#4c8dff;--accS:rgba(76,141,255,.15);--sh:none;--glass:rgba(22,24,27,.88)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,"Helvetica Neue",sans-serif;overscroll-behavior:none}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--txt)}
+a{color:var(--acc);text-decoration:none}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:middle}
+.wrap{max-width:760px;margin:0 auto}
+.sub{color:var(--sub);font-size:13px}
+.ok{color:var(--ok)}.bad{color:var(--err)}.warn{color:var(--warn)}
+/* Tabs */
+.tab{position:absolute;inset:0 0 calc(var(--bar) + env(safe-area-inset-bottom)) 0;overflow-y:auto;overflow-x:hidden;display:none;padding-top:env(safe-area-inset-top);-webkit-overflow-scrolling:touch}
+.tab.on{display:block}
+#bar{position:fixed;left:0;right:0;bottom:0;height:calc(var(--bar) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);display:flex;z-index:20}
+#bar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--sub);position:relative}
+#bar button.on{color:var(--acc);font-weight:600}
+#bar svg.i{width:25px;height:25px}
+.dot{position:absolute;top:8px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--err)}
+.hdr{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10px;display:flex;align-items:center;gap:10px}
+.hdr h1{font-size:24px;margin:0;font-weight:750;letter-spacing:-.3px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--card);box-shadow:var(--sh);flex:none}
+.ibtn:active,.tap:active{transform:scale(.96)}
+.tap{transition:transform .08s}
+.brand{display:flex;align-items:center;gap:8px}
+.logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2f80ff,#1550c8);display:grid;place-items:center;color:#fff;flex:none}
+.logo svg.i{width:19px;height:19px;stroke-width:2.2}
+.sec{padding:0 16px 14px}
+.sec>h2{font-size:13px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;margin:12px 4px 8px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh)}
+.pad{padding:14px}
+/* Buttons & Controls */
+.btn{height:46px;padding:0 18px;border-radius:23px;background:var(--card2);font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--acc);color:var(--accT)}
+.btn.red{background:var(--err);color:#fff}
+.btn.ghost{background:transparent;border:1.5px solid var(--line)}
+.btn.sm{height:36px;padding:0 14px;font-size:14px;border-radius:18px}
+.btn.full{width:100%}
+.btn:disabled{opacity:.45}
+.btnrow{display:flex;gap:10px}.btnrow>.btn{flex:1}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{height:34px;padding:0 14px;border-radius:17px;background:var(--card);box-shadow:var(--sh);font-size:14px;white-space:nowrap;flex:none}
+.chip.on{background:var(--acc);color:var(--accT);font-weight:600}
+.seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;height:34px;border-radius:9px;font-size:14px;color:var(--sub)}
+.seg button.on{background:var(--card);color:var(--txt);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.sw{width:50px;height:30px;border-radius:15px;background:#c9ccd2;position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s}
+.sw.on{background:var(--ok)}.sw.on::after{left:23px}
+input[type=text],input[type=url],input[type=number],input[type=search],select{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card2);padding:0 12px;outline:none}
+input[type=search]{-webkit-appearance:none}
+input:focus,select:focus{border-color:var(--acc)}
+input[type=range]{width:100%;accent-color:var(--acc);height:30px}
+/* List rows */
+.list{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:54px;width:100%;text-align:left;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .ri{width:34px;height:34px;border-radius:10px;background:var(--accS);color:var(--acc);display:grid;place-items:center;flex:none}
+.row .ri svg.i{width:19px;height:19px}
+.row .rt{flex:1;min-width:0}
+.row .rt b{display:block;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rt small{display:block;color:var(--sub);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rv{color:var(--sub);font-size:14px;max-width:48%;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row select{height:36px;max-width:58%;border:0;background:transparent;text-align:right;color:var(--sub);padding:0;direction:rtl}
+.row select option{direction:ltr}
+.chev{color:var(--sub);opacity:.6}
+.thumb{width:52px;height:52px;border-radius:12px;background:var(--card2);flex:none;object-fit:cover;display:grid;place-items:center;color:var(--sub);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+/* Entdecken */
+.search{display:flex;gap:8px;padding:0 16px 10px;position:sticky;top:62px;z-index:4;background:var(--bg)}
+.sbox{flex:1;position:relative}
+.sbox svg.i{position:absolute;left:12px;top:11px;color:var(--sub);width:20px;height:20px}
+.sbox input{padding-left:40px;border-radius:22px;background:var(--card);box-shadow:var(--sh);border:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px;padding:0 16px 16px}
+.mcard{display:flex;flex-direction:column;text-align:left;overflow:hidden}
+.mcard .im{aspect-ratio:4/3;background:var(--card2);position:relative;overflow:hidden}
+.mcard .im img{width:100%;height:100%;object-fit:cover;display:block}
+.mcard .mt{padding:9px 11px 11px}
+.mcard .mt b{font-weight:600;font-size:14px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+.stats{display:flex;gap:10px;color:var(--sub);font-size:12px;margin-top:4px;align-items:center}
+.stats svg.i{width:14px;height:14px}
+.stats span{display:inline-flex;gap:3px;align-items:center}
+.empty{color:var(--sub);text-align:center;padding:40px 24px}
+.empty svg.i{width:44px;height:44px;stroke-width:1.3;margin-bottom:8px;opacity:.7}
+.more{display:flex;justify-content:center;padding:0 16px 24px}
+/* Drucker */
+.cam{position:relative;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:radial-gradient(120% 120% at 50% 0%,#2a2e35,#0d0e10);margin:0 16px}
+.cam img.stream{width:100%;height:100%;object-fit:cover;display:block}
+.cam .ill{position:absolute;inset:6% 0 0}
+.cam .badge{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;display:flex;gap:5px;align-items:center;letter-spacing:.3px}
+.cam .badge i{width:7px;height:7px;border-radius:50%;background:#ef4444}
+.cam .tools{position:absolute;right:10px;bottom:10px;display:flex;gap:8px}
+.cam .tools button{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center;backdrop-filter:blur(6px)}
+.cam .tools button.on{color:#ffd166}
+.cam .note{position:absolute;left:12px;bottom:12px;color:rgba(255,255,255,.65);font-size:12px}
+.pcard{margin:12px 16px 0;padding:14px;display:flex;gap:14px;align-items:center}
+.pcard .thumb{width:68px;height:68px}
+.pbar{height:7px;border-radius:4px;background:var(--card2);overflow:hidden;margin:8px 0 6px}
+.pbar i{display:block;height:100%;width:0;background:var(--acc);border-radius:4px;transition:width .6s}
+.pmeta{display:flex;justify-content:space-between;font-size:13px;color:var(--sub);gap:8px;white-space:nowrap}
+.pmeta span{overflow:hidden;text-overflow:ellipsis}
+.screen.st{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
+.pbtns{display:flex;gap:8px;margin-left:auto}
+.cbtn{width:46px;height:46px;border-radius:50%;background:var(--card2);display:grid;place-items:center}
+.cbtn.stop{color:var(--err)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 16px 0}
+.tile{padding:12px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:84px}
+.tile .tl{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12.5px}
+.tile .tl svg.i{width:17px;height:17px}
+.tile b{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.tile b small{font-size:13px;color:var(--sub);font-weight:500}
+.tile.hot .tl svg.i{color:#f97316}
+.qa{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 16px 0}
+.qa button{display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 4px;font-size:12.5px}
+.qa .qi{width:44px;height:44px;border-radius:14px;background:var(--accS);color:var(--acc);display:grid;place-items:center}
+.qa button.on .qi{background:var(--acc);color:#fff}
+.pr-head{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.pr-head h1{flex:0 1 auto}
+.stdot{width:9px;height:9px;border-radius:50%;background:var(--sub);flex:none}
+.stdot.on{background:var(--ok)}.stdot.off{background:var(--err)}.stdot.demo{background:var(--warn)}
+/* Sheet & Screens */
+#sheetwrap{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:60;display:flex;align-items:flex-end;animation:fade .18s}
+#sheet{background:var(--card);width:100%;max-width:640px;margin:0 auto;border-radius:22px 22px 0 0;padding:6px 18px calc(18px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto;animation:up .22s ease}
+#sheet .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
+#sheet h3{margin:4px 0 12px;font-size:18px}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+@keyframes fade{from{opacity:0}}
+.screen{position:fixed;inset:0;background:var(--bg);z-index:40;overflow-y:auto;padding-top:env(safe-area-inset-top);padding-bottom:calc(90px + env(safe-area-inset-bottom));animation:slide .22s ease}
+@keyframes slide{from{transform:translateX(30px);opacity:0}}
+.screen .hdr h1{font-size:18px;font-weight:650}
+.big{font-size:44px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;margin:6px 0 4px}
+.kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);gap:12px}
+.kv:last-child{border:0}
+.kv b{font-weight:600;text-align:right}
+.jog{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:8px}
+.jog button,.zc button{border-radius:16px;background:var(--card2);display:grid;place-items:center;font-weight:600;font-size:13px}
+.zc{display:grid;grid-template-rows:repeat(3,64px);gap:8px;width:64px}
+.motion{display:flex;gap:16px;justify-content:center;margin:6px 0 14px}
+/* Detail */
+.gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding:0 16px;scrollbar-width:none}
+.gal::-webkit-scrollbar{display:none}
+.gal img{flex:0 0 100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r);scroll-snap-align:center;background:var(--card2)}
+.dtitle{padding:14px 16px 4px;font-size:21px;font-weight:700;line-height:1.25;margin:0}
+.dmeta{padding:0 16px 12px}
+.dsum{padding:0 16px 8px;color:var(--sub);font-size:14px}
+/* Slicer */
+.viewer{height:min(42vh,380px);margin:0 16px;border-radius:var(--r);overflow:hidden;position:relative;background:linear-gradient(180deg,var(--card2),var(--card))}
+.viewer canvas{display:block;width:100%!important;height:100%!important;touch-action:none}
+.viewer .vmsg{position:absolute;inset:0;display:grid;place-items:center;color:var(--sub);font-size:13px;text-align:center;padding:20px}
+.viewer .vinfo{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--sub);background:var(--glass);padding:3px 8px;border-radius:8px}
+.sticky{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);z-index:41}
+.optrow{padding:12px 14px;border-bottom:1px solid var(--line)}
+.optrow:last-child{border:0}
+.optrow .ol{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-weight:550}
+.optrow .ol small{color:var(--sub);font-weight:400}
+.optrow .chips{padding:0}
+.optrow .chip{box-shadow:none;background:var(--card2)}
+.optrow .chip.on{background:var(--acc)}
+.res{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+.res div{background:var(--card2);border-radius:12px;padding:10px 12px}
+.res small{display:block;color:var(--sub);font-size:12px}
+.res b{font-size:17px}
+.spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--accS);border-top-color:var(--acc);animation:sp .9s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.logbox{font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--card2);border-radius:10px;padding:10px;max-height:150px;overflow:auto;white-space:pre-wrap;color:var(--sub);margin-top:10px;user-select:text}
+.ill-card{margin:0 16px;display:flex;align-items:center;gap:6px;padding:10px 16px 10px 0;overflow:hidden}
+.ill-card .ill{width:44%;height:150px;flex:none}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:90%}
+.tst{background:#25282d;color:#fff;padding:11px 16px;border-radius:14px;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.3);animation:up .2s;max-width:100%;text-align:center}
+.tst.err{background:#b42318}
+.prog-up{height:4px;border-radius:2px;background:var(--card2);overflow:hidden;margin-top:6px}
+.prog-up i{display:block;height:100%;background:var(--acc);width:0}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:7px;background:var(--accS);color:var(--acc);vertical-align:middle}
+.help{font-size:13px;color:var(--sub);line-height:1.5}
+.help b{color:var(--txt)}
+/* Ender-Illustration (wie Tablet-Oberfläche) */
+svg.ender{overflow:visible;width:100%;height:100%}
+.ender .fil{fill:#e8e8e8}
+.ender .lamp{fill:#4a4c50;transition:fill .3s}
+.ender.lit .lamp{fill:#fff6dc;filter:url(#fGlow)}
+.ender .cone{opacity:0;transition:opacity .4s}
+.ender.lit .cone{opacity:1}
+.ender .gantry,.ender .head,.ender .bedG{transition:transform .8s ease}
+@media (min-width:900px){.tab .wrap,.screen .wrap{max-width:820px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="gFrame" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b3e43"/><stop offset="1" stop-color="#1f2124"/></linearGradient>
+  <linearGradient id="gPlate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a5244"/><stop offset="1" stop-color="#2f2a23"/></linearGradient>
+  <linearGradient id="gHead" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd3d7"/></linearGradient>
+  <radialGradient id="gHot"><stop offset="0" stop-color="#ffd27a"/><stop offset=".45" stop-color="#ff7a1a" stop-opacity=".8"/><stop offset="1" stop-color="#ff4d00" stop-opacity="0"/></radialGradient>
+  <linearGradient id="gCone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2cc" stop-opacity=".28"/><stop offset="1" stop-color="#fff2cc" stop-opacity="0"/></linearGradient>
+  <filter id="fGlow" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs></svg>
+
+<main>
+  <section class="tab" id="t-discover"></section>
+  <section class="tab on" id="t-printer"></section>
+  <section class="tab" id="t-projects"></section>
+  <section class="tab" id="t-me"></section>
+</main>
+<nav id="bar">
+  <button data-a="tab" data-v="discover"><span data-ic="compass"></span>Entdecken</button>
+  <button data-a="tab" data-v="printer" class="on"><span data-ic="printer"></span>Drucker<i class="dot" id="dot-pr" hidden></i></button>
+  <button data-a="tab" data-v="projects"><span data-ic="layers"></span>Projekte<i class="dot" id="dot-pj" hidden></i></button>
+  <button data-a="tab" data-v="me"><span data-ic="user"></span>Ich</button>
+</nav>
+<div id="screens"></div>
+<div id="sheetwrap" hidden><div id="sheet"></div></div>
+<div id="toast"></div>
+<input type="file" id="f-model" accept=".stl,.3mf,.obj,.step,.stp,.gcode,.zip" hidden>
+<input type="file" id="f-prof" accept=".3mf,.orca_printer,.orca_filament,.zip,.json,.bbscfg,.bbsflmt" hidden>
+
+<script>
+"use strict";
+/* ===================== Utils ===================== */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r0=v=>Math.round(+v||0), clamp=(v,a,b)=>Math.max(a,Math.min(b,+v||0));
+const f2=v=>(v==null||isNaN(v))?'–':(+v).toFixed(2);
+function set(id,t){const e=document.getElementById(id);if(e&&e.textContent!==String(t))e.textContent=t}
+function html(el,key,h){if(!el)return false;if(el._k!==key){el._k=key;el.innerHTML=h;return true}return false}
+function fmtDur(s){s=Math.max(0,Math.round(s||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h} h ${String(m).padStart(2,'0')} min`:`${m} min`}
+function fmtSize(b){b=+b||0;return b>1e6?(b/1e6).toFixed(1)+' MB':Math.max(1,Math.round(b/1e3))+' kB'}
+function fmtNum(n){n=+n||0;return n>=1e4?(n/1e3).toFixed(0)+'k':n>=1e3?(n/1e3).toFixed(1)+'k':String(n)}
+function fmtDate(t){const d=new Date(t*1000),now=new Date();return d.toDateString()===now.toDateString()?d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'})}
+const baseName=p=>String(p).split('/').pop().replace(/\.(gcode|gco|g)$/i,'');
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1).replace(/_/g,' '):'';
+
+/* ===================== Icons ===================== */
+const IC={
+ compass:'<circle cx="12" cy="12" r="9.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+ printer:'<rect x="3.5" y="3" width="17" height="18" rx="2.5"/><path d="M3.5 7.5h17M8 12h8M12 12v3.5"/><path d="M10.6 15.5h2.8l-.7 1.5h-1.4z"/><path d="M6 18.5h12"/>',
+ layers:'<path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/>',
+ search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+ heart:'<path d="M12 20s-7.5-4.6-9-9.2C2 7.6 4.2 5 7 5c2 0 3.2 1.1 5 3 1.8-1.9 3-3 5-3 2.8 0 5 2.6 4 5.8-1.5 4.6-9 9.2-9 9.2z"/>',
+ download:'<path d="M12 4v11M7 10.5l5 5 5-5M4 20h16"/>',
+ upload:'<path d="M12 20V9M7 13.5l5-5 5 5M4 4h16"/>',
+ link:'<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>',
+ back:'<path d="M15 4l-8 8 8 8"/>', chev:'<path d="M9 5l7 7-7 7"/>', close:'<path d="M6 6l12 12M18 6L6 18"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>', trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+ cube:'<path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z"/><path d="M3.5 7.3 12 12l8.5-4.7M12 12v9.5"/>',
+ play:'<path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/>', pause:'<path d="M8.5 5v14M15.5 5v14" stroke-width="3"/>',
+ stop:'<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+ nozzle:'<path d="M7 3h10v7H7zM9.5 10h5l-1.6 4.5h-1.8z"/><path d="M8 19.5l1-1.5M12 21v-2.2M16 19.5l-1-1.5"/>',
+ bed:'<path d="M3 20.5h18M8 16c-1.6-2 1.6-4 0-6s1.6-4 0-6M12 16c-1.6-2 1.6-4 0-6s1.6-4 0-6M16 16c-1.6-2 1.6-4 0-6s1.6-4 0-6"/>',
+ chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".5"/><path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5"/>',
+ fan:'<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C11 6 12.5 3 15 3s2.5 4.5-3 7.2M13.8 12c4.2-1 7.2.5 7.2 3s-4.5 2.5-7.2-3M12 13.8c1 4.2-.5 7.2-3 7.2s-2.5-4.5 3-7.2M10.2 12C6 13 3 11.5 3 9s4.5-2.5 7.2 3"/>',
+ gauge:'<path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.5-5.5"/><circle cx="12" cy="17" r="1.3" fill="currentColor"/>',
+ move:'<path d="M12 2.5v19M2.5 12h19M12 2.5 9 5.5M12 2.5l3 3M12 21.5l-3-3M12 21.5l3-3M2.5 12l3-3M2.5 12l3 3M21.5 12l-3-3M21.5 12l-3 3"/>',
+ bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8V16h7.2v-2.2A6 6 0 0 0 12 3z"/>',
+ power:'<path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/>',
+ spool:'<ellipse cx="8" cy="12" rx="3.6" ry="8.5"/><path d="M8 3.5h8M8 20.5h8"/><ellipse cx="16" cy="12" rx="3.6" ry="8.5"/>',
+ folder:'<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2.5h9A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',
+ history:'<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 3.5v5h5M12 7.5V12l3 2"/>',
+ camera:'<path d="M3 7.5h4l2-3h6l2 3h4V19H3z"/><circle cx="12" cy="13" r="3.6"/>',
+ full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+ up:'<path d="M12 19V5M6 11l6-6 6 6"/>', down:'<path d="M12 5v14M6 13l6 6 6-6"/>', left:'<path d="M19 12H5M11 6l-6 6 6 6"/>', right:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+ home:'<path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z"/>',
+ gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+ server:'<rect x="3.5" y="4" width="17" height="7" rx="2"/><rect x="3.5" y="13" width="17" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+ moon:'<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+ bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5h4"/>',
+ home2:'<path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19.5 7"/>', info:'<circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.5"/>',
+ send:'<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>', sliders:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+ ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>', sync:'<path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 3.5V9h-5.5M20 12a8 8 0 0 1-14 5.3L4 15M4 20.5V15h5.5"/>',
+ thermo:'<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>',
+ logo:'<path d="M5 20V5.5A1.5 1.5 0 0 1 6.5 4h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17M8 9.5h8M11 9.5v3h2v-3M9.5 15.5h5"/>',
+};
+const ic=(n,c='')=>`<svg class="i ${c}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
+
+/* ===================== Config ===================== */
+const DEF={host:'proxy',port:'',webcam:'',theme:'auto',demo:false,name:'Ender-3 S1',haUrl:'',haToken:'',lightSrc:'auto',lightRef:'',psuSrc:'auto',psuRef:'',notify:false,last:{},filColor:'#3b82f6'};
+let CFG=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('s1mobile')||'{}')}catch(e){}return Object.assign({},DEF,s)})();
+const FILE=location.protocol==='file:';
+if(FILE)CFG.demo=true;
+function save(){if(FILE)return;try{localStorage.setItem('s1mobile',JSON.stringify(CFG))}catch(e){}}
+const demoAll=()=>!!CFG.demo, demoPr=()=>CFG.demo||!CFG.host;
+function applyTheme(){document.documentElement.dataset.theme=CFG.theme==='auto'?'':CFG.theme}
+applyTheme();
+
+/* ===================== Toast / Sheet / Screens ===================== */
+let lastT='',lastTt=0;
+function toast(m,cls){if(m===lastT&&Date.now()-lastTt<2500)return;lastT=m;lastTt=Date.now();const d=document.createElement('div');d.className='tst '+(cls||'');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),cls==='err'?5000:2600)}
+let shR=null,CB=null;
+function sheet(h,r){$('#sheet').innerHTML='<div class="grab"></div>'+h;$('#sheetwrap').hidden=false;shR=r||null;if(shR)shR();pushNav('sheet')}
+function closeSheet(fromPop){if($('#sheetwrap').hidden)return;$('#sheetwrap').hidden=true;$('#sheet').innerHTML='';shR=null;if(!fromPop)popNav()}
+$('#sheetwrap').addEventListener('click',e=>{if(e.target.id==='sheetwrap')closeSheet()});
+function confirmS(text,ok,cb,danger){CB=cb;sheet(`<h3>${danger?'Sicher?':'Bestätigen'}</h3><p class="sub" style="font-size:15px">${text}</p><div class="btnrow" style="margin-top:16px"><button class="btn" data-a="shClose">Abbrechen</button><button class="btn ${danger?'red':'pri'}" data-a="cfOk">${ok}</button></div>`)}
+const SCR=[];   // offene Unterseiten
+function screen(title,body,r,opts={}){const el=document.createElement('div');el.className='screen'+(opts.sticky?' st':'');
+ el.innerHTML=`<div class="hdr wrap"><button class="ibtn tap" data-a="back">${ic('back')}</button><h1>${esc(title)}</h1>${opts.right||''}</div><div class="wrap">${body}</div>${opts.sticky?`<div class="sticky"><div class="wrap">${opts.sticky}</div></div>`:''}`;
+ $('#screens').appendChild(el);const s={el,r:r||null,onClose:opts.onClose};SCR.push(s);pushNav('screen');if(s.r)s.r(el);return el}
+function closeScreen(fromPop){const s=SCR.pop();if(!s)return;if(s.onClose)s.onClose();s.el.remove();if(!fromPop)popNav()}
+let navDepth=0,navSkip=0;
+function pushNav(k){navDepth++;try{history.pushState({d:navDepth,k},'')}catch(e){}}
+function popNav(){if(navDepth>0){navDepth--;navSkip++;try{history.back()}catch(e){navSkip--}}}
+window.addEventListener('popstate',()=>{if(navSkip>0){navSkip--;return}navDepth=Math.max(0,navDepth-1);if(!$('#sheetwrap').hidden)closeSheet(true);else if(SCR.length)closeScreen(true)});
+const topScreen=()=>SCR[SCR.length-1];
+
+/* ===================== Backend (Slicer/Printables) ===================== */
+async function bk(path,opt={}){
+ if(demoAll())return Demo.bk(path,opt);
+ const o={method:opt.method||(opt.json?'POST':'GET'),headers:{}};
+ if(opt.json){o.headers['Content-Type']='application/json';o.body=JSON.stringify(opt.json)}
+ let r;try{r=await fetch('/api'+path,o)}catch(e){throw new Error('Server nicht erreichbar')}
+ const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j}
+function upload(path,file,onp){
+ if(demoAll())return Demo.upload(path,file,onp);
+ return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('POST','/api'+path);x.setRequestHeader('X-Filename',encodeURIComponent(file.name));
+  x.upload.onprogress=e=>{if(e.lengthComputable&&onp)onp(e.loaded/e.total)};
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}x.status<300?res(j):rej(new Error(j.error||'HTTP '+x.status))};
+  x.onerror=()=>rej(new Error('Upload fehlgeschlagen'));x.send(file)})}
+
+/* ===================== Moonraker ===================== */
+const ST={},KL={state:'',msg:'',settings:{},meta:null,metaFile:''};
+const M={ws:null,id:1,pend:{},ok:false,ready:false,gen:0,t:0,
+ base(){const s=location.protocol==='https:';if(CFG.host==='proxy')return{ws:(s?'wss://':'ws://')+location.host,http:location.origin};const p=CFG.port?':'+CFG.port:':7125';return{ws:(s?'wss://':'ws://')+CFG.host+p,http:(s?'https://':'http://')+CFG.host+p}},
+ connect(){const g=++this.gen;clearTimeout(this.t);if(this.ws){try{this.ws.onclose=null;this.ws.close()}catch(e){}this.ws=null}
+  this.ok=false;this.ready=false;PWRL=[];for(const k in PWR)delete PWR[k];
+  if(demoPr()){Demo.start();loadPower();pollHA();schedule();return}
+  Demo.stop();pollHA();
+  let ws;try{ws=this.ws=new WebSocket(this.base().ws+'/websocket')}catch(e){this.t=setTimeout(()=>this.connect(),4000);return}
+  ws.onopen=async()=>{if(g!==this.gen)return;this.ok=true;schedule();try{await this.call('server.connection.identify',{client_name:'S1 Mobile',version:'1.0.0',type:'mobile',url:location.href})}catch(e){}loadPower();this.init()};
+  ws.onclose=()=>{if(g!==this.gen)return;this.ok=false;this.ready=false;schedule();this.t=setTimeout(()=>this.connect(),3000)};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+   if(m.id&&this.pend[m.id]){const p=this.pend[m.id];delete this.pend[m.id];m.error?p.rej(m.error):p.res(m.result);return}
+   const P=m.params||[];
+   if(m.method==='notify_status_update')merge(P[0]);
+   else if(m.method==='notify_klippy_ready')this.init();
+   else if(m.method==='notify_power_changed'&&P[0]){PWR[P[0].device]=P[0].status;schedule()}
+   else if(m.method==='notify_gcode_response'&&/^!!/.test(P[0]||''))toast(String(P[0]).replace(/^!!\s*/,''),'err');
+   else if(m.method==='notify_klippy_shutdown'||m.method==='notify_klippy_disconnected'){this.ready=false;KL.state='startup';schedule();clearTimeout(this.t);this.t=setTimeout(()=>this.init(),2500)}}},
+ call(method,params={}){return new Promise((res,rej)=>{if(!this.ws||this.ws.readyState!==1)return rej({message:'Drucker nicht verbunden'});
+  const id=this.id++;this.pend[id]={res,rej};this.ws.send(JSON.stringify({jsonrpc:'2.0',method,params,id}));
+  setTimeout(()=>{if(this.pend[id]){delete this.pend[id];rej({message:'Zeitüberschreitung'})}},method==='printer.gcode.script'?1800000:20000)})},
+ async init(){clearTimeout(this.t);
+  try{const info=await this.call('server.info');KL.state=info.klippy_state;
+   if(info.klippy_state!=='ready'){try{KL.msg=(await this.call('printer.info')).state_message}catch(e){}this.ready=false;schedule();this.t=setTimeout(()=>this.init(),3000);return}
+   const ol=(await this.call('printer.objects.list')).objects;
+   const objs={};['webhooks','print_stats','virtual_sdcard','display_status','extruder','heater_bed','fan','gcode_move','toolhead','idle_timeout','exclude_object'].filter(o=>ol.includes(o)).forEach(o=>objs[o]=null);
+   ol.filter(o=>/^(temperature_sensor|temperature_host|filament_switch_sensor|filament_motion_sensor|output_pin|led|neopixel) /.test(o)).forEach(o=>objs[o]=null);
+   const r=await this.call('printer.objects.subscribe',{objects:objs});for(const k in ST)delete ST[k];merge(r.status);
+   this.ready=true;KL.metaFile='';schedule()}catch(e){this.ready=false;schedule();this.t=setTimeout(()=>this.init(),3000)}}};
+function api(m,p){return demoPr()?Demo.api(m,p||{}):M.call(m,p)}
+function G(s){const pr=demoPr()?Demo.gcode(s):M.call('printer.gcode.script',{script:s});return pr.catch(e=>{toast((e&&e.message)||'Fehler','err');throw e})}
+function merge(o){if(!o)return;for(const k in o){const v=o[k];if(v&&typeof v==='object'&&!Array.isArray(v))ST[k]=Object.assign(ST[k]||{},v);else ST[k]=v}schedule()}
+const isPrinting=()=>['printing','paused'].includes((ST.print_stats||{}).state);
+const homed=a=>[...a].every(c=>((ST.toolhead||{}).homed_axes||'').includes(c));
+const online=()=>demoPr()||(M.ok&&M.ready);
+function thumbUrl(m){if(!m)return'';if(m._thumb)return m._thumb;if(!m.thumbnails||!m.thumbnails.length)return'';
+ const t=m.thumbnails.reduce((a,b)=>b.width>a.width?b:a);const fn=m.filename||'';const dir=fn.includes('/')?fn.slice(0,fn.lastIndexOf('/')+1):'';
+ return M.base().http+'/server/files/gcodes/'+(dir+t.relative_path).split('/').map(encodeURIComponent).join('/')}
+function loadMeta(fn){KL.metaFile=fn;KL.meta=null;api('server.files.metadata',{filename:fn}).then(m=>{if(KL.metaFile===fn){KL.meta=m;schedule()}}).catch(()=>{})}
+
+/* ===================== Schalter (Licht/Netzteil) – wie Tablet-UI ===================== */
+const PWR={};let PWRL=[];const HA={};let haT=0,HAERR='';
+const PAT={light:/light|licht|lamp|led|case/i,psu:/printer|drucker|psu|netzteil|power|steckdose|plug|ender/i};
+function loadPower(){api('machine.device_power.devices').then(r=>{PWRL=(r&&r.devices)||[];PWRL.forEach(d=>PWR[d.device]=d.status);schedule()}).catch(()=>{PWRL=[]})}
+async function haFetch(path,body){if(demoPr())return Demo.ha(path,body);const u=(CFG.haUrl||'').trim();if(!u)throw new Error('Home Assistant nicht eingerichtet');
+ const b=u==='proxy'?location.origin+'/ha':u.replace(/\/+$/,'');const h={'Content-Type':'application/json'};if(CFG.haToken&&u!=='proxy')h.Authorization='Bearer '+CFG.haToken;
+ const r=await fetch(b+path,{method:body?'POST':'GET',headers:h,body:body?JSON.stringify(body):undefined});if(!r.ok)throw new Error('Home Assistant: HTTP '+r.status);return r.json()}
+async function pollHA(){clearTimeout(haT);const ids=[lightCfg(),psuCfg()].filter(s=>s&&s.src==='ha').map(s=>s.ref);
+ if(ids.length){let err='';await Promise.all(ids.map(id=>haFetch('/api/states/'+encodeURIComponent(id)).then(s=>{HA[id]=s.state}).catch(e=>{HA[id]=null;err=e.message})));if(err&&err!==HAERR)toast(err,'err');HAERR=err;schedule()}
+ haT=setTimeout(pollHA,ids.length?5000:20000)}
+function lightCfg(){const s=CFG.lightSrc||'auto',r=(CFG.lightRef||'').trim();if(s==='none')return null;if(s!=='auto')return r?{src:s,ref:r}:null;
+ const o=Object.keys(ST).find(k=>/^(output_pin|led|neopixel) /.test(k)&&PAT.light.test(k.split(' ')[1]));if(o)return{src:'klipper',ref:o};
+ const d=PWRL.find(d=>PAT.light.test(d.device));return d?{src:'moonraker',ref:d.device}:null}
+function psuCfg(){const s=CFG.psuSrc||'auto',r=(CFG.psuRef||'').trim();if(s==='none')return null;if(s!=='auto')return r?{src:s,ref:r}:null;
+ const d=PWRL.find(d=>PAT.psu.test(d.device)&&!PAT.light.test(d.device));return d?{src:'moonraker',ref:d.device}:null}
+function swState(s){if(!s)return null;const r=s.ref;
+ if(s.src==='klipper'){const o=ST[r];if(!o)return null;if(r.startsWith('output_pin'))return o.value>0;const c=o.color_data&&o.color_data[0];return c?c.some(v=>v>0):false}
+ if(s.src==='moonraker')return PWR[r]==null?null:PWR[r]==='on';
+ if(s.src==='ha'){const v=HA[r];return v==null||v==='unavailable'?null:v==='on'}return null}
+function swSet(s,on){const r=s.ref;
+ if(s.src==='klipper'){const n=r.split(' ')[1];return r.startsWith('output_pin')?G(`SET_PIN PIN=${n} VALUE=${on?1:0}`):G(`SET_LED LED=${n} RED=${on?1:0} GREEN=${on?1:0} BLUE=${on?1:0}`)}
+ if(s.src==='moonraker')return api('machine.device_power.post_device',{device:r,action:on?'on':'off'}).then(x=>{if(x&&x[r])PWR[r]=x[r];schedule()}).catch(e=>{toast(e.message||'Fehler','err');throw e});
+ if(s.src==='ha'){HA[r]=on?'on':'off';schedule();return haFetch('/api/services/homeassistant/'+(on?'turn_on':'turn_off'),{entity_id:r}).then(()=>setTimeout(pollHA,900)).catch(e=>{toast(e.message,'err');throw e})}
+ return Promise.reject()}
+
+/* ===================== Ender-Illustration ===================== */
+function enderSVG(){const fr='fill="url(#gFrame)" stroke="rgba(255,255,255,.17)"';
+ return `<svg class="ender" viewBox="0 -62 420 404" preserveAspectRatio="xMidYMid meet">
+ <polygon class="cone" points="84,-16 336,-16 398,300 22,300" fill="url(#gCone)"/>
+ <g><rect x="238" y="-6" width="24" height="10" rx="2" fill="#26282b"/><circle cx="250" cy="-32" r="29" fill="#18191b" stroke="rgba(255,255,255,.25)"/><circle class="fil" cx="250" cy="-32" r="21"/><circle cx="250" cy="-32" r="7.5" fill="#0e0f10" stroke="rgba(255,255,255,.3)"/></g>
+ <rect x="96" y="0" width="18" height="300" ${fr}/><rect x="306" y="0" width="18" height="300" ${fr}/><rect x="86" y="-8" width="248" height="16" rx="2" ${fr}/>
+ <rect x="70" y="-27" width="280" height="11" rx="5.5" fill="#1f2124" stroke="rgba(255,255,255,.2)"/><rect class="lamp" x="78" y="-23.5" width="264" height="4" rx="2"/>
+ <path class="filp" fill="none" stroke-width="1.6" stroke="#e9e9e9"/>
+ <path d="M40 300H380L402 336H18Z" ${fr}/>
+ <g><rect x="332" y="305" width="52" height="25" rx="4" fill="#0d0e0f" stroke="rgba(255,255,255,.28)"/><rect x="336" y="308.5" width="44" height="18" rx="2" fill="#24292d"/><rect x="338.5" y="311" width="4" height="13" rx="1" fill="#4c8dff"/></g>
+ <g class="bedG"><path d="M66 280H354L364 292H56Z" fill="#1b1c1f"/><path d="M60 256H360L384 282H36Z" fill="url(#gPlate)" stroke="rgba(255,255,255,.38)"/><path class="bedheat" d="M60 256H360L384 282H36Z" fill="#ff6a1a" opacity="0"/><path d="M36 282H384V286.5H36Z" fill="#131415"/></g>
+ <g class="gantry" transform="translate(0 190)"><rect x="78" y="0" width="264" height="14" rx="2" ${fr}/><rect x="66" y="-7" width="42" height="28" rx="5" fill="#3d4046" stroke="rgba(255,255,255,.18)"/><rect x="312" y="-7" width="42" height="28" rx="5" fill="#3d4046" stroke="rgba(255,255,255,.18)"/>
+  <g class="head" transform="translate(210 0)"><rect x="-35" y="16" width="9" height="22" rx="2" fill="#1e1f21" stroke="rgba(255,255,255,.22)"/><rect x="-24" y="-20" width="48" height="52" rx="9" fill="url(#gHead)" stroke="rgba(0,0,0,.3)"/><circle cx="0" cy="5" r="12.5" fill="#1a1a1b" stroke="#8b8f94"/><circle cx="0" cy="5" r="5" fill="#2c2d2f"/><rect x="-7" y="32" width="14" height="6" fill="#8d9298"/><path d="M-4 38H4L1.6 45H-1.6Z" fill="#d6a845"/><circle class="glow" cx="0" cy="46" r="9" fill="url(#gHot)" opacity="0"/></g></g></svg>`}
+function updEnder(){const p=(ST.toolhead&&ST.toolhead.position)||[117,117,40];const x=clamp(p[0],0,235),y=clamp(p[1],0,235),z=clamp(p[2],0,270);
+ const hx=140+x/235*140,gy=223-z*0.78,by=(117-y)*0.06,ex=ST.extruder||{},bd=ST.heater_bed||{};const nh=clamp((ex.temperature-45)/160,0,1),bh=clamp((bd.temperature-30)/60,0,1)*0.42,L=swState(lightCfg())===true;
+ $$('svg.ender').forEach(s=>{if(!s.getClientRects().length)return;s.querySelector('.gantry').setAttribute('transform',`translate(0 ${gy.toFixed(1)})`);s.querySelector('.head').setAttribute('transform',`translate(${hx.toFixed(1)} 0)`);
+  s.querySelector('.bedG').setAttribute('transform',`translate(0 ${by.toFixed(1)})`);s.querySelector('.glow').setAttribute('opacity',nh.toFixed(2));s.querySelector('.bedheat').setAttribute('opacity',bh.toFixed(2));s.classList.toggle('lit',L);
+  s.querySelector('.fil').style.fill=CFG.filColor;const fp=s.querySelector('.filp');fp.setAttribute('stroke',CFG.filColor);fp.setAttribute('d',`M250 -3C250 40 ${hx.toFixed(1)} ${(gy-80).toFixed(1)} ${hx.toFixed(1)} ${(gy-20).toFixed(1)}`)})}
+
+/* ===================== Render-Schleife ===================== */
+let raf=0,prevState='',TAB='printer';
+function schedule(){if(!raf)raf=requestAnimationFrame(render)}
+function render(){raf=0;
+ const ps=ST.print_stats||{},st=ps.state||'';
+ if(ps.filename&&ps.filename!==KL.metaFile)loadMeta(ps.filename);
+ if(prevState==='printing'&&['complete','error','cancelled'].includes(st))notifyDone(st,ps.filename);
+ prevState=st;
+ $('#dot-pr').hidden=!(st==='error'||(st==='paused'));
+ $('#dot-pj').hidden=!PJ.jobs.some(j=>j.state==='running'||j.state==='queued');
+ if(TAB==='printer')renderPrinter();
+ updEnder();
+ if(shR)shR();
+ const t=topScreen();if(t&&t.r)t.r(t.el);
+}
+function progress(){const ps=ST.print_stats||{};if(ps.state==='complete')return 1;const v=ST.virtual_sdcard,d=ST.display_status;return (v&&v.progress)||(d&&d.progress)||0}
+function remaining(){const ps=ST.print_stats||{},p=progress(),d=ps.print_duration||0,est=KL.meta&&KL.meta.estimated_time;if(p>=1)return 0;if(p>0.08&&d>60)return d/p-d;if(est)return est*(1-p);return null}
+function notifyDone(st,fn){const t={complete:'Druck fertig ✓',error:'Druck mit Fehler beendet',cancelled:'Druck abgebrochen'}[st];toast(`${t}: ${baseName(fn||'')}`);
+ if(CFG.notify&&'Notification' in window&&Notification.permission==='granted'&&navigator.serviceWorker){navigator.serviceWorker.getRegistration().then(r=>r&&r.showNotification(t,{body:baseName(fn||''),icon:'/icons/icon-192.png',tag:'s1-print'})).catch(()=>{})}}
+
+/* ===================== Tab: Drucker ===================== */
+let CAM=true;
+function buildPrinter(){$('#t-printer').innerHTML=`<div class="wrap">
+ <div class="hdr"><div class="pr-head"><span class="stdot" id="pr-dot"></span><h1 id="pr-name"></h1></div><button class="ibtn tap" data-a="sheetFiles" aria-label="Dateien">${ic('folder')}</button></div>
+ <div class="cam" id="cam"><div class="ill" id="cam-ill">${enderSVG()}</div><img class="stream" id="cam-img" alt="" hidden>
+  <span class="badge" id="cam-badge" hidden><i></i>LIVE</span><span class="note" id="cam-note"></span>
+  <div class="tools"><button data-a="light" id="cam-light" aria-label="Licht">${ic('bulb')}</button><button data-a="camFull" aria-label="Vollbild">${ic('full')}</button></div></div>
+ <div class="card pcard" id="pcard"></div>
+ <div class="tiles">
+  <button class="card tile tap" data-a="temp" data-v="extruder" id="tl-noz"><span class="tl">${ic('nozzle')}Düse</span><b id="v-noz">–</b></button>
+  <button class="card tile tap" data-a="temp" data-v="heater_bed" id="tl-bed"><span class="tl">${ic('bed')}Heizbett</span><b id="v-bed">–</b></button>
+  <div class="card tile" id="tl-3"><span class="tl" id="v-3n">${ic('chip')}Elektronik</span><b id="v-3">–</b></div>
+ </div>
+ <div class="qa">
+  <button class="tap" data-a="fan"><span class="qi">${ic('fan')}</span><span id="q-fan">Lüfter</span></button>
+  <button class="tap" data-a="speed"><span class="qi">${ic('gauge')}</span><span id="q-spd">Tempo</span></button>
+  <button class="tap" data-a="light" id="q-light"><span class="qi">${ic('bulb')}</span>Licht</button>
+  <button class="tap" data-a="psu" id="q-psu"><span class="qi">${ic('power')}</span>Netzteil</button>
+  <button class="tap" data-a="motion"><span class="qi">${ic('move')}</span>Bewegung</button>
+  <button class="tap" data-a="filament"><span class="qi">${ic('spool')}</span>Filament</button>
+  <button class="tap" data-a="sheetFiles"><span class="qi">${ic('folder')}</span>Dateien</button>
+  <button class="tap" data-a="history"><span class="qi">${ic('history')}</span>Verlauf</button>
+ </div><div style="height:20px"></div></div>`}
+function renderPrinter(){
+ const ps=ST.print_stats||{},st=ps.state||'',ex=ST.extruder||{},bd=ST.heater_bed||{};
+ set('pr-name',CFG.name);$('#pr-dot').className='stdot '+(demoPr()?'demo':online()?'on':'off');
+ // Kamera
+ const camOn=CAM&&!!CFG.webcam&&!demoPr(),im=$('#cam-img');im.hidden=!camOn;$('#cam-ill').hidden=camOn;$('#cam-badge').hidden=!camOn;
+ if(camOn&&im._u!==CFG.webcam){im._u=CFG.webcam;im.src=CFG.webcam}if(!camOn&&im._u){im._u='';im.removeAttribute('src')}
+ set('cam-note',camOn?'':CFG.webcam?'Kamera aus':demoPr()?'Demo – keine Kamera':'Keine Kamera eingerichtet');
+ const LC=lightCfg(),lv=swState(LC);$('#cam-light').hidden=!LC;$('#cam-light').classList.toggle('on',lv===true);
+ $('#q-light').hidden=!LC;$('#q-light').classList.toggle('on',lv===true);
+ const PC=psuCfg(),pv=swState(PC);$('#q-psu').hidden=!PC;$('#q-psu').classList.toggle('on',pv===true);
+ // Druckkarte
+ const pc=$('#pcard'),printing=st==='printing'||st==='paused';
+ if(!online()){html(pc,'off'+M.ok+KL.state+(pv===false),`<div class="thumb">${ic('printer')}</div><div style="flex:1;min-width:0"><b>${!M.ok?'Nicht verbunden':pv===false?'Drucker ist aus':'Klipper: '+esc(KL.state||'startet')}</b><div class="sub">${!M.ok?'Moonraker nicht erreichbar – Verbindung unter „Ich“ prüfen':esc(KL.msg||'')}</div></div>${PC&&pv===false?`<button class="btn sm pri" data-a="psuOn">Einschalten</button>`:''}`)}
+ else if(printing||['complete','cancelled','error'].includes(st)&&ps.filename){
+  const key='p'+st+ps.filename;
+  if(html(pc,key,`<div class="thumb" id="p-th">${ic('cube')}</div><div style="flex:1;min-width:0"><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="p-fn"></b>
+   <div class="pbar"><i id="p-bar"></i></div><div class="pmeta"><span id="p-pct"></span><span id="p-rem"></span></div></div>
+   ${printing?`<div class="pbtns"><button class="cbtn tap" data-a="pause" id="p-pz"></button><button class="cbtn stop tap" data-a="cancel">${ic('stop')}</button></div>`:`<div class="pbtns"><button class="cbtn tap" data-a="reprint" aria-label="Erneut drucken">${ic('sync')}</button></div>`}`)){}
+  set('p-fn',baseName(ps.filename));const p=progress();$('#p-bar').style.width=(p*100).toFixed(1)+'%';
+  const inf=ps.info||{},ly=inf.total_layer?` · ${inf.current_layer||0}/${inf.total_layer}`:'';
+  set('p-pct',{printing:r0(p*100)+'%',paused:'Pausiert · '+r0(p*100)+'%',complete:'Fertig',cancelled:'Abgebrochen',error:'Fehler'}[st]+(printing?ly:''));
+  const rem=remaining();set('p-rem',printing&&rem!=null?'−'+fmtDur(rem):ps.print_duration?fmtDur(ps.print_duration):'');
+  const pz=$('#p-pz');if(pz)html(pz,st,st==='paused'?ic('play'):ic('pause'));
+  const u=thumbUrl(KL.meta),th=$('#p-th');if(u&&th._u!==u){th._u=u;th.innerHTML=`<img src="${esc(u)}" alt="">`}}
+ else html(pc,'idle',`<div class="thumb">${ic('check','ok')}</div><div style="flex:1;min-width:0"><b>Bereit</b><div class="sub" id="p-idle"></div></div><button class="btn sm pri" data-a="sheetFiles">Drucken</button>`);
+ set('p-idle',`Düse ${r0(ex.temperature)} °C · Bett ${r0(bd.temperature)} °C`);
+ // Kacheln
+ const tt=(o)=>`${r0(o.temperature)}<small> / ${r0(o.target)} °C</small>`;
+ html($('#v-noz'),tt(ex),tt(ex));html($('#v-bed'),tt(bd),tt(bd));
+ $('#tl-noz').classList.toggle('hot',ex.target>0);$('#tl-bed').classList.toggle('hot',bd.target>0);
+ const ts=Object.keys(ST).find(k=>/^temperature_(sensor|host) /.test(k));html($('#v-3n'),ts||'-',ic('chip')+(ts?esc(cap(ts.split(' ')[1])):'Elektronik'));html($('#v-3'),ts?r0(ST[ts].temperature):'-',ts?`${r0(ST[ts].temperature)}<small> °C</small>`:'–');
+ const fan=(ST.fan||{}).speed||0;set('q-fan',fan>0?`Lüfter ${r0(fan*100)}%`:'Lüfter');
+ const sf=r0(((ST.gcode_move||{}).speed_factor||1)*100);set('q-spd',{50:'Leise',100:'Standard',124:'Sport',166:'Turbo'}[sf]||sf+'%');
+}
+/* --- Drucker-Sheets --- */
+function tempSheet(h){const isE=h==='extruder';const pre=isE?[0,190,205,220,235,245]:[0,50,60,70,80,100];
+ sheet(`<h3>${isE?'Düse':'Heizbett'}</h3><div class="big" id="ts-v"></div><div class="sub" style="text-align:center" id="ts-t"></div>
+ <input type="range" id="ts-r" min="0" max="${isE?260:100}" step="5"><div class="chips" style="padding:4px 0 12px;flex-wrap:wrap">${pre.map(v=>`<button class="chip tap" data-a="tempSet" data-v="${h}:${v}">${v?v+' °C':'Aus'}</button>`).join('')}</div>
+ <div class="btnrow"><button class="btn" data-a="shClose">Schließen</button><button class="btn pri" data-a="tempApply" data-v="${h}">Übernehmen</button></div>`,
+ ()=>{const o=ST[h]||{};set('ts-v',r0(o.temperature)+' °C');const r=$('#ts-r');if(r&&!r._t){r.value=o.target||0}set('ts-t','Ziel: '+(r?r.value:0)+' °C')})}
+function fanSheet(){sheet(`<h3>Bauteillüfter</h3><div class="big" id="fs-v"></div><input type="range" id="fs-r" min="0" max="100" step="5"><div class="chips" style="padding:4px 0 12px">${[0,30,50,80,100].map(v=>`<button class="chip tap" data-a="fanSet" data-v="${v}">${v}%</button>`).join('')}</div>`,
+ ()=>{const v=r0(((ST.fan||{}).speed||0)*100),r=$('#fs-r');if(r&&!r._t)r.value=v;set('fs-v',(r?r.value:v)+'%')})}
+function speedSheet(){const MD=[[50,'Leise'],[100,'Standard'],[124,'Sport'],[166,'Turbo']];
+ sheet(`<h3>Geschwindigkeit</h3><div class="seg" id="ss">${MD.map(([v,n])=>`<button data-a="spdSet" data-v="${v}">${n}<br><small>${v}%</small></button>`).join('')}</div><p class="sub" style="margin-top:12px">Wirkt sofort auf den laufenden Druck (M220).</p>`,
+ ()=>{const v=r0(((ST.gcode_move||{}).speed_factor||1)*100);$$('#ss button').forEach(b=>b.classList.toggle('on',+b.dataset.v===v))});$$('#ss button').forEach(b=>b.style.height='52px')}
+let JS=10;
+function motionSheet(){const jb=(a,d,i)=>`<button class="tap" data-a="jog" data-v="${a}:${d}">${ic(i)}</button>`;
+ sheet(`<h3>Bewegung</h3><div class="motion"><div class="jog"><span></span>${jb('Y',1,'up')}<span></span>${jb('X',-1,'left')}<button class="tap" data-a="g" data-v="G28 X Y">${ic('home')}</button>${jb('X',1,'right')}<span></span>${jb('Y',-1,'down')}<span></span></div>
+ <div class="zc">${jb('Z',1,'up')}<button class="tap" data-a="g" data-v="G28 Z">Z${ic('home')}</button>${jb('Z',-1,'down')}</div></div>
+ <div class="seg" id="ms">${[0.1,1,10,50].map(v=>`<button data-a="jogStep" data-v="${v}">${v} mm</button>`).join('')}</div>
+ <div class="kv" style="margin-top:10px"><span>Position</span><b id="ms-p"></b></div>
+ <div class="btnrow" style="margin-top:12px"><button class="btn pri" data-a="g" data-v="G28">Alle referenzieren</button><button class="btn" data-a="g" data-v="M84">Motoren aus</button></div>`,
+ ()=>{const p=(ST.toolhead||{}).position||[0,0,0];set('ms-p',`X ${f2(p[0])}  Y ${f2(p[1])}  Z ${f2(p[2])}`);$$('#ms button').forEach(b=>b.classList.toggle('on',+b.dataset.v===JS))})}
+const MATS={PLA:[205,60],PETG:[235,75],ABS:[245,100],TPU:[225,50]};let FMAT='PLA';
+function filamentSheet(){sheet(`<h3>Filament</h3><div class="seg" id="fm">${Object.keys(MATS).map(k=>`<button data-a="fmat" data-v="${k}">${k}</button>`).join('')}</div>
+ <div class="kv" style="margin-top:10px"><span>Düse aktuell</span><b id="fm-t"></b></div><div class="kv"><span>Temperatur zum Laden</span><b id="fm-l"></b></div>
+ <div class="btnrow" style="margin-top:14px"><button class="btn" data-a="fUnload">${ic('up')}Entladen</button><button class="btn pri" data-a="fLoad">${ic('down')}Laden</button></div>
+ <p class="sub" style="margin-top:12px">Nutzt die Makros LOAD_FILAMENT / UNLOAD_FILAMENT aus s1_touch.cfg. Wechsel mitten im Druck: Pause → Entladen → Laden → Fortsetzen.</p>`,
+ ()=>{$$('#fm button').forEach(b=>b.classList.toggle('on',b.dataset.v===FMAT));set('fm-t',r0((ST.extruder||{}).temperature)+' °C');set('fm-l',MATS[FMAT][0]+' °C')})}
+let FILES=[];
+async function filesSheet(){sheet(`<h3>Druckdateien</h3><div class="list" id="fl"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>`);
+ try{const l=await api('server.files.list',{root:'gcodes'});FILES=l.filter(f=>/\.(gcode|gco|g)$/i.test(f.path)).sort((a,b)=>b.modified-a.modified).slice(0,60);
+  const el=$('#fl');if(!el)return;el.innerHTML=FILES.length?FILES.map((f,i)=>`<button class="row tap" data-a="fileAsk" data-v="${i}"><span class="thumb" id="ft${i}">${ic('cube')}</span><span class="rt"><b>${esc(baseName(f.path))}</b><small id="fm${i}">${fmtDate(f.modified)} · ${fmtSize(f.size)}</small></span>${ic('chev','chev')}</button>`).join(''):`<div class="empty">${ic('folder')}<div>Keine Dateien</div></div>`;
+  for(let i=0;i<Math.min(FILES.length,30);i++){if(!$('#fl'))return;try{const m=await api('server.files.metadata',{filename:FILES[i].path});FILES[i].meta=m;const u=thumbUrl(m),t=$('#ft'+i);if(t&&u)t.innerHTML=`<img src="${esc(u)}" alt="">`;
+   set('fm'+i,[m.estimated_time?fmtDur(m.estimated_time):'',m.filament_weight_total?r0(m.filament_weight_total)+' g':'',fmtDate(FILES[i].modified)].filter(Boolean).join(' · '))}catch(e){}}
+ }catch(e){const el=$('#fl');if(el)el.innerHTML=`<div class="empty">${esc(e.message||'Fehler')}</div>`}}
+async function historySheet(){sheet(`<h3>Druckverlauf</h3><div class="list" id="hl"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>`);
+ try{const r=await api('server.history.list',{limit:30,order:'desc'});const js=r.jobs||[];const el=$('#hl');if(!el)return;
+  el.innerHTML=js.length?js.map(j=>{const ok=j.status==='completed';return `<div class="row"><span class="ri" style="${ok?'':'background:rgba(229,72,77,.12);color:var(--err)'}">${ic(ok?'check':'close')}</span><span class="rt"><b>${esc(baseName(j.filename))}</b><small>${fmtDate(j.end_time||j.start_time)} · ${fmtDur(j.print_duration)} · ${ok?'Fertig':esc(j.status)}</small></span></div>`}).join(''):`<div class="empty">${ic('history')}<div>Noch keine Drucke</div></div>`}
+ catch(e){const el=$('#hl');if(el)el.innerHTML=`<div class="empty">${esc(e.message||'Verlauf nicht verfügbar')}</div>`}}
+function psuToggle(){const p=psuCfg();if(!p)return;const on=swState(p);if(on!==true)return ACT.psuOn();if(isPrinting())return toast('Während des Drucks gesperrt');
+ const t=(ST.extruder||{}).temperature||0;confirmS(t>50?`Die Düse ist noch ${r0(t)} °C heiß – ohne Strom steht der Hotend-Lüfter. Trotzdem ausschalten?`:'Drucker-Netzteil ausschalten?','Ausschalten',()=>swSet(p,false).catch(()=>{}),true)}
+
+/* ===================== Tab: Entdecken (Printables) ===================== */
+const DS={q:'',ord:'popular',items:[],loading:false,err:'',offset:0,more:false,req:0};
+const SUGG=['Benchy','Gridfinity','Kabelhalter','Ender 3 S1','Organizer','Handyhalter','Werkzeug','Spulenhalter'];
+function buildDiscover(){$('#t-discover').innerHTML=`<div class="wrap">
+ <div class="hdr"><span class="brand"><span class="logo">${ic('logo')}</span></span><h1>Entdecken</h1><button class="ibtn tap" data-a="pasteLink" aria-label="Printables-Link">${ic('link')}</button></div>
+ <form class="search" id="sform"><div class="sbox">${ic('search')}<input type="search" id="sq" placeholder="Printables durchsuchen" enterkeyhint="search" autocomplete="off"></div></form>
+ <div class="chips" id="ord">${[['popular','Beliebt'],['latest','Neu'],['rating','Top bewertet'],['makes_count','Meist gedruckt'],['best_match','Relevanz']].map(([v,n])=>`<button class="chip tap" data-a="ord" data-v="${v}">${n}</button>`).join('')}</div>
+ <div id="dres"></div></div>`;
+ $('#sform').addEventListener('submit',e=>{e.preventDefault();DS.q=$('#sq').value.trim();if(DS.q&&DS.ord==='popular')DS.ord='best_match';$('#sq').blur();search()});
+ renderDiscover()}
+async function search(more){const id=++DS.req;DS.loading=true;DS.err='';if(!more){DS.items=[];DS.offset=0}renderDiscover();
+ try{const r=await bk(`/printables/search?q=${encodeURIComponent(DS.q)}&ordering=${DS.ord}&limit=24&offset=${DS.offset}`);if(id!==DS.req)return;
+  DS.items=DS.items.concat(r.items||[]);DS.more=(r.items||[]).length>=24;DS.offset+=24}
+ catch(e){if(id!==DS.req)return;DS.err=e.message}DS.loading=false;renderDiscover()}
+function renderDiscover(){$$('#ord .chip').forEach(b=>b.classList.toggle('on',b.dataset.v===DS.ord));const el=$('#dres');if(!el)return;
+ if(DS.err&&!DS.items.length){el.innerHTML=`<div class="empty">${ic('compass')}<div><b>Printables nicht erreichbar</b></div><div class="sub" style="margin-top:6px">${esc(DS.err)}</div><button class="btn sm" style="margin-top:14px" data-a="retry">Erneut versuchen</button></div>`;return}
+ if(!DS.items.length&&!DS.loading){el.innerHTML=`<div class="empty">${ic('search')}<div>${DS.q?'Nichts gefunden':'Was möchtest du drucken?'}</div></div><div class="chips" style="flex-wrap:wrap;justify-content:center">${SUGG.map(s=>`<button class="chip tap" data-a="sugg" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div>`;return}
+ el.innerHTML=`<div class="grid">${DS.items.map((m,i)=>`<button class="card mcard tap" data-a="model" data-v="${esc(m.id)}" data-i="${i}"><div class="im">${m.image?`<img loading="lazy" src="${esc(m.image)}" alt="">`:''}</div><div class="mt"><b>${esc(m.name)}</b><div class="stats"><span>${esc(m.author||'')}</span></div><div class="stats"><span>${ic('heart')}${fmtNum(m.likes)}</span><span>${ic('download')}${fmtNum(m.downloads)}</span></div></div></button>`).join('')}</div>
+  ${DS.loading?'<div class="more"><div class="spin"></div></div>':DS.more?'<div class="more"><button class="btn sm" data-a="moreRes">Mehr laden</button></div>':''}`}
+function parsePrintables(s){const m=String(s||'').match(/printables\.com\/(?:[a-z]{2}\/)?model\/(\d+)/i);return m?m[1]:null}
+async function openModel(id,pre){const m=Object.assign({id},pre||{});
+ const el=screen(m.name||'Modell',`<div id="md"><div class="gal"><img src="${esc(m.image||'')}" alt=""></div><h2 class="dtitle">${esc(m.name||'')}</h2><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>`,null,
+  {right:`<a class="ibtn tap" href="https://www.printables.com/model/${esc(id)}" target="_blank" rel="noopener" aria-label="Auf Printables öffnen">${ic('ext')}</a>`});
+ try{const d=await bk('/printables/model/'+id);Object.assign(m,Object.fromEntries(Object.entries(d).filter(([k,v])=>v!=null)));el._model=m;
+  const imgs=(m.images&&m.images.length?m.images:[m.image]).filter(Boolean);
+  const slicable=f=>/\.(stl|3mf|obj|step|stp)$/i.test(f.name),isG=f=>/\.gcode$/i.test(f.name);
+  el.querySelector('#md').innerHTML=`<div class="gal">${imgs.map(u=>`<img src="${esc(u)}" alt="" loading="lazy">`).join('')}</div>
+   <h2 class="dtitle">${esc(m.name)}</h2><div class="dmeta stats" style="font-size:13px"><span>von <b style="color:var(--txt)">${esc(m.author||'?')}</b></span><span>${ic('heart')}${fmtNum(m.likes)}</span><span>${ic('download')}${fmtNum(m.downloads)}</span></div>
+   ${m.summary?`<p class="dsum">${esc(m.summary)}</p>`:''}
+   <div class="sec"><h2>Dateien</h2><div class="list">${(m.files||[]).map((f,i)=>`<div class="row"><span class="ri">${ic(isG(f)?'printer':'cube')}</span><span class="rt"><b>${esc(f.name)}</b><small>${fmtSize(f.size)}${isG(f)?' · G-Code (fremder Drucker? Vorsicht)':''}</small></span>
+     ${slicable(f)||isG(f)?`<button class="btn sm ${slicable(f)?'pri':''}" data-a="pDl" data-v="${i}" id="pdl${i}">${slicable(f)?'Slicen':'Laden'}</button>`:'<span class="sub">–</span>'}</div>`).join('')||'<div class="empty">Keine Dateien</div>'}</div>
+   <p class="sub" style="margin:10px 4px">Modelle werden auf deinen Server geladen und stehen danach unter „Projekte“. Lizenz des Modells beachten.</p></div>`}
+ catch(e){el.querySelector('#md').innerHTML=`<div class="empty">${ic('info')}<div><b>Konnte Modell nicht laden</b></div><div class="sub">${esc(e.message)}</div></div>`}}
+
+/* ===================== Tab: Projekte ===================== */
+const PJ={models:[],jobs:[],loaded:false,poll:0,up:null};
+function buildProjects(){$('#t-projects').innerHTML=`<div class="wrap">
+ <div class="hdr"><h1>Projekte</h1><button class="ibtn tap" data-a="pickModel" aria-label="Modell hochladen">${ic('plus')}</button></div>
+ <div id="pj-up"></div><div id="pj-jobs"></div><div class="sec"><h2>Modelle</h2><div id="pj-models"></div></div></div>`;renderProjects()}
+async function loadProjects(){try{const [a,b]=await Promise.all([bk('/models'),bk('/jobs')]);PJ.models=a.models||[];PJ.jobs=b.jobs||[];PJ.loaded=true;PJ.err=''}catch(e){PJ.err=e.message;PJ.loaded=true}
+ renderProjects();schedule();clearTimeout(PJ.poll);if(PJ.jobs.some(j=>j.state==='queued'||j.state==='running'))PJ.poll=setTimeout(loadProjects,1500)}
+function modelIcon(m){return m.image?`<img src="${esc(m.image)}" alt="">`:ic(m.ext==='gcode'?'printer':'cube')}
+function renderProjects(){const up=$('#pj-up');if(!up)return;
+ html(up,PJ.up?'u'+PJ.up.name:'n',PJ.up?`<div class="sec"><div class="card pad"><div style="display:flex;gap:10px;align-items:center"><div class="spin"></div><b style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(PJ.up.name)}</b><span class="sub" id="up-p"></span></div><div class="prog-up"><i id="up-b"></i></div></div></div>`:'');
+ if(PJ.up){set('up-p',r0(PJ.up.p*100)+'%');const b=$('#up-b');if(b)b.style.width=(PJ.up.p*100)+'%'}
+ const jobs=PJ.jobs.slice(0,6);
+ html($('#pj-jobs'),JSON.stringify(jobs.map(j=>[j.id,j.state,j.progress])),jobs.length?`<div class="sec"><h2>Slice-Aufträge</h2><div class="list">${jobs.map(j=>{const r=(j.results||[])[0]||{};
+  const right=j.state==='done'?`<button class="btn sm pri" data-a="jobPrint" data-v="${j.id}">${ic('play')}Drucken</button>`:j.state==='error'?`<span class="bad">Fehler</span>`:`<div class="spin"></div>`;
+  return `<div class="row"><button class="ri tap" data-a="jobOpen" data-v="${j.id}" style="${j.state==='error'?'background:rgba(229,72,77,.12);color:var(--err)':''}">${ic(j.state==='done'?'check':j.state==='error'?'info':'sliders')}</button><button class="rt tap" style="text-align:left" data-a="jobOpen" data-v="${j.id}"><b>${esc(j.model_name)}</b><small>${j.state==='done'?esc([r.time,r.weight?r.weight+' g':''].filter(Boolean).join(' · ')):j.state==='error'?'Antippen für Details':esc(j.progress||'')+(j.position>1?' (Platz '+j.position+')':'')}</small></button>${right}</div>`}).join('')}</div></div>`:'');
+ const ml=$('#pj-models');
+ if(!PJ.loaded){html(ml,'ld','<div class="empty"><div class="spin" style="margin:0 auto"></div></div>');return}
+ if(PJ.err&&!PJ.models.length){html(ml,'e'+PJ.err,`<div class="empty">${ic('server')}<div><b>Slicer-Server nicht erreichbar</b></div><div class="sub">${esc(PJ.err)}</div></div>`);return}
+ html(ml,JSON.stringify(PJ.models.map(m=>m.id)),PJ.models.length?`<div class="list">${PJ.models.map(m=>`<button class="row tap" data-a="modelOpen" data-v="${m.id}"><span class="thumb">${modelIcon(m)}</span><span class="rt"><b>${esc(m.name)}</b><small>${m.ext.toUpperCase()} · ${fmtSize(m.size)} · ${fmtDate(m.added)}${m.source==='printables'?' · Printables':''}</small></span>${ic('chev','chev')}</button>`).join('')}</div>`
+  :`<div class="card empty">${ic('cube')}<div><b>Noch keine Modelle</b></div><div class="sub" style="margin:6px 0 14px">Lade eine STL/3MF hoch oder hol dir eins aus „Entdecken“.</div><button class="btn pri" data-a="pickModel">${ic('upload')}Modell hochladen</button></div>`)}
+async function doUpload(file){if(!file)return;PJ.up={name:file.name,p:0};renderProjects();
+ try{const m=await upload('/models/upload',file,p=>{PJ.up.p=p;renderProjects()});PJ.up=null;await loadProjects();toast('Hochgeladen: '+file.name);
+  const mm=m.multi?m.multi[0]:m;if(mm&&mm.ext!=='gcode')openSlicer(mm.id)}
+ catch(e){PJ.up=null;renderProjects();toast(e.message,'err')}}
+
+/* ===================== Slicer-Seite ===================== */
+const SL={};
+const OPT={support:'profile',bpo:true,infill:null,walls:null,brim:'profile',layer:null,orient:false,arrange:true,scale:100,ntemp:'',btemp:''};
+async function openSlicer(mid){
+ const m=PJ.models.find(x=>x.id===mid)||(await bk('/models')).models.find(x=>x.id===mid);if(!m)return toast('Modell nicht gefunden','err');
+ if(m.ext==='gcode')return gcodeSheet(m);
+ Object.assign(SL,{model:m,prof:null,sel:Object.assign({},CFG.last||{}),ov:Object.assign({},OPT),job:null,jobData:null});
+ const el=screen(m.name,`<div class="viewer" id="vw"><div class="vmsg" id="vmsg"><div class="spin"></div></div><span class="vinfo" id="vinfo" hidden></span></div>
+  <div class="sec"><h2>Profil</h2><div class="list" id="sl-prof"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div></div>
+  <div class="sec"><h2>Einstellungen</h2><div class="list" id="sl-opt"></div></div>
+  <div class="sec"><details class="card"><summary class="pad" style="font-weight:600;cursor:pointer">Erweitert</summary><div id="sl-adv" style="padding:0 14px 14px"></div></details></div>`,
+  ()=>renderSlicer(),{sticky:`<div id="sl-act"></div>`,onClose:()=>{if(window.Viewer)window.Viewer.dispose();SL.model=null;clearTimeout(SL.poll)}});
+ renderSlicer();loadProfiles();
+ const tryV=(n=0)=>{if(window.Viewer)window.Viewer.mount($('#vw'),demoAll()?null:`/api/models/${m.id}/file`,m.ext,()=>OPTS().scale);else if(n<40)setTimeout(()=>tryV(n+1),150);else{const v=$('#vmsg');if(v)v.textContent='3D-Vorschau nicht verfügbar (keine Internetverbindung zum Laden von three.js)'}};tryV()}
+const OPTS=()=>SL.ov||OPT;
+async function loadProfiles(mach){try{const r=await bk('/profiles'+(mach?'?machine='+encodeURIComponent(mach):''));SL.prof=r;
+ const pick=(t)=>{const names=r.profiles[t].map(x=>x.name);if(!names.includes(SL.sel[t]))SL.sel[t]=r.default[t]};
+ if(!mach){pick('machine')}else SL.sel.machine=mach;pick('process');pick('filament');renderSlicer(true)}
+ catch(e){const el=$('#sl-prof');if(el)el.innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
+function selRow(t,label,icn){const P=SL.prof.profiles[t];const grp=(src)=>P.filter(x=>(x.src==='system')===(src==='system'));
+ const opts=g=>g.map(x=>`<option ${x.name===SL.sel[t]?'selected':''}>${esc(x.name)}</option>`).join('');
+ const mine=grp('user'),sys=grp('system');
+ return `<label class="row"><span class="ri">${ic(icn)}</span><span class="rt"><b>${label}</b></span><select data-sel="${t}">${mine.length?`<optgroup label="Vom PC">${opts(mine)}</optgroup>`:''}${sys.length?`<optgroup label="Orca-System">${opts(sys)}</optgroup>`:''}</select></label>`}
+function chipRow(label,key,vals,hint){const cur=SL.ov[key];return `<div class="optrow"><div class="ol">${label}${hint?`<small>${hint}</small>`:''}</div><div class="chips">${vals.map(([v,n])=>`<button class="chip tap ${String(cur)===String(v)?'on':''}" data-a="ov" data-k="${key}" data-v="${v}">${n}</button>`).join('')}</div></div>`}
+function renderSlicer(force){if(!SL.model)return;const pe=$('#sl-prof');
+ if(SL.prof&&pe&&(force||!pe._done)){pe._done=1;const c=SL.prof.counts;pe.innerHTML=selRow('machine','Drucker','printer')+selRow('process','Qualität','layers')+selRow('filament','Filament','spool')+
+  (c.machine+c.process+c.filament===0?`<button class="row tap" data-a="tab" data-v="me"><span class="ri" style="background:rgba(217,119,6,.12);color:var(--warn)">${ic('info')}</span><span class="rt"><b>Noch kein Profil vom PC</b><small>Systemprofil hat Marlin-Startcode – für Klipper dein PC-Profil importieren</small></span>${ic('chev','chev')}</button>`:'')}
+ const o=SL.ov,key=JSON.stringify(o);const oe=$('#sl-opt');
+ if(oe&&oe._k!==key){oe._k=key;oe.innerHTML=
+  `<div class="optrow"><div class="ol">Stützen</div><div class="seg">${[['profile','Profil'],['none','Aus'],['normal','Normal'],['tree','Baum']].map(([v,n])=>`<button class="${o.support===v?'on':''}" data-a="ov" data-k="support" data-v="${v}">${n}</button>`).join('')}</div>
+   ${o.support==='normal'||o.support==='tree'?`<div class="ol" style="margin:12px 0 0">Nur auf dem Druckbett<button class="sw ${o.bpo?'on':''}" data-a="ovt" data-k="bpo"></button></div>`:''}</div>`+
+  chipRow('Infill','infill',[['null','Profil'],[10,'10%'],[15,'15%'],[20,'20%'],[30,'30%'],[50,'50%'],[100,'100%']])+
+  chipRow('Schichthöhe','layer',[['null','Profil'],[0.12,'0,12'],[0.16,'0,16'],[0.2,'0,20'],[0.24,'0,24'],[0.28,'0,28']],'mm')+
+  chipRow('Wände','walls',[['null','Profil'],[2,'2'],[3,'3'],[4,'4'],[6,'6']])+
+  `<div class="optrow"><div class="ol">Brim</div><div class="seg">${[['profile','Profil'],['none','Aus'],['auto','Auto'],['outer','An']].map(([v,n])=>`<button class="${o.brim===v?'on':''}" data-a="ov" data-k="brim" data-v="${v}">${n}</button>`).join('')}</div></div>`+
+  chipRow('Größe','scale',[[50,'50%'],[75,'75%'],[100,'100%'],[125,'125%'],[150,'150%'],[200,'200%']]);
+  $('#sl-adv').innerHTML=`<div class="ol optrow" style="padding:10px 0;display:flex;justify-content:space-between;align-items:center">Automatisch ausrichten<button class="sw ${o.orient?'on':''}" data-a="ovt" data-k="orient"></button></div>
+   <div class="optrow" style="padding:10px 0;display:flex;justify-content:space-between;align-items:center">Auf Platte anordnen<button class="sw ${o.arrange?'on':''}" data-a="ovt" data-k="arrange"></button></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><label class="sub">Düse °C<input type="number" inputmode="numeric" placeholder="Profil" data-ovi="ntemp" value="${esc(o.ntemp)}"></label><label class="sub">Bett °C<input type="number" inputmode="numeric" placeholder="Profil" data-ovi="btemp" value="${esc(o.btemp)}"></label></div>`}
+ const vi=$('#vinfo');if(vi&&window.Viewer&&window.Viewer.dims){const d=window.Viewer.dims(o.scale);if(d){vi.hidden=false;set('vinfo',`${d[0]} × ${d[1]} × ${d[2]} mm`+(d[0]>220||d[1]>220||d[2]>270?' · zu groß!':''))}}
+ // Aktion unten
+ const a=$('#sl-act');if(!a)return;const j=SL.jobData;
+ if(!j)html(a,'s'+!!SL.prof,`<button class="btn pri full" data-a="slice" ${SL.prof?'':'disabled'}>${ic('layers')}Slicen</button>`);
+ else if(j.state==='queued'||j.state==='running')html(a,'r'+j.progress,`<div style="display:flex;align-items:center;gap:12px;height:46px"><div class="spin"></div><b style="flex:1">${esc(j.progress||'Slicen…')}</b><span class="sub" id="sl-el"></span></div>`);
+ else if(j.state==='error')html(a,'e',`<div class="btnrow"><button class="btn" data-a="jobOpen" data-v="${j.id}">Details</button><button class="btn pri" data-a="slice">Nochmal</button></div>`);
+ else if(j.state==='done'){const r=(j.results||[])[0]||{};html(a,'d'+j.id,`<div class="res" style="margin:0 0 10px">
+  <div><small>Druckzeit</small><b>${esc(r.time||'–')}</b></div><div><small>Filament</small><b>${r.weight?esc(r.weight)+' g':'–'}${r.length?' · '+(r.length/1000).toFixed(1)+' m':''}</b></div></div>
+  ${j.results.length>1?`<p class="sub" style="margin:-4px 0 8px">${j.results.length} Druckplatten – es wird Platte 1 gesendet (Rest unter „Projekte“).</p>`:''}
+  <div class="btnrow"><button class="btn" data-a="jobSend" data-v="${j.id}">${ic('send')}Senden</button><button class="btn pri" data-a="jobPrint" data-v="${j.id}">${ic('play')}Drucken</button></div>`)}
+ if(j&&j.started)set('sl-el',r0(Date.now()/1000-j.started)+' s')}
+async function startSlice(){const o=SL.ov,ov={};
+ if(o.support!=='profile'){ov.support=o.support;if(o.support!=='none')ov.support_on_build_plate_only=o.bpo}
+ if(o.infill!=null)ov.sparse_infill_density=o.infill;if(o.layer!=null)ov.layer_height=o.layer;if(o.walls!=null)ov.wall_loops=o.walls;if(o.brim!=='profile')ov.brim_type=o.brim;
+ ov.orient=o.orient;ov.arrange=o.arrange;ov.scale=o.scale;if(o.ntemp)ov.nozzle_temp=+o.ntemp;if(o.btemp)ov.bed_temp=+o.btemp;
+ CFG.last={machine:SL.sel.machine,process:SL.sel.process,filament:SL.sel.filament};save();
+ try{const j=await bk('/slice',{json:{model:SL.model.id,machine:SL.sel.machine,process:SL.sel.process,filament:SL.sel.filament,overrides:ov}});SL.job=j.id;SL.jobData=j;renderSlicer();pollSlice()}
+ catch(e){toast(e.message,'err')}}
+async function pollSlice(){clearTimeout(SL.poll);if(!SL.job)return;try{const j=await bk('/jobs/'+SL.job);SL.jobData=j;renderSlicer();
+ if(j.state==='error'){toast('Slicen fehlgeschlagen','err');jobDetail(j)}if(j.state==='queued'||j.state==='running')SL.poll=setTimeout(pollSlice,1000);else loadProjects()}catch(e){SL.poll=setTimeout(pollSlice,2500)}}
+function jobDetail(j){const r=j.results||[];sheet(`<h3>${esc(j.model_name)}</h3>
+ ${j.state==='error'?`<p class="bad" style="white-space:pre-wrap">${esc(String(j.error).split('\n')[0])}</p><div class="logbox">${esc(j.log||j.error)}</div>`:''}
+ ${r.map((x,i)=>`<div class="card pad" style="margin-top:10px;box-shadow:none;background:var(--card2)"><b>${esc(x.file)}</b><div class="sub">${esc([x.time,x.weight?x.weight+' g':'',x.layers?x.layers+' Schichten':'',fmtSize(x.size)].filter(Boolean).join(' · '))}</div>
+  <div class="btnrow" style="margin-top:10px"><a class="btn sm" href="/api/jobs/${j.id}/gcode/${i}" download>${ic('download')}</a><button class="btn sm" data-a="jobSendI" data-v="${j.id}:${i}:0">Senden</button><button class="btn sm pri" data-a="jobSendI" data-v="${j.id}:${i}:1">Drucken</button></div></div>`).join('')}
+ <p class="sub" style="margin-top:12px">${esc(Object.entries((j.req||{})).filter(([k])=>['machine','process','filament'].includes(k)).map(([k,v])=>v).join(' · '))}</p>`)}
+async function jobSend(id,idx,print){if(print&&isPrinting())return toast('Drucker ist beschäftigt – erst nach dem aktuellen Druck','err');
+ try{const r=await bk(`/jobs/${id}/send`,{json:{index:idx,print}});toast(print?'Druck gestartet':'An Drucker gesendet: '+r.path);closeSheet();if(print){while(SCR.length)closeScreen();go('printer')}}catch(e){toast(e.message,'err')}}
+function gcodeSheet(m){sheet(`<h3>${esc(m.name)}</h3><p class="sub">Fertiger G-Code (${fmtSize(m.size)}). Nur drucken, wenn er für den Ender-3 S1 erstellt wurde!</p>
+ <div class="btnrow" style="margin-top:14px"><button class="btn" data-a="gSend" data-v="${m.id}:0">Senden</button><button class="btn pri" data-a="gSend" data-v="${m.id}:1">Drucken</button></div>
+ <button class="btn ghost full" style="margin-top:10px;color:var(--err)" data-a="modelDel" data-v="${m.id}">${ic('trash')}Löschen</button>`)}
+
+/* ===================== Tab: Ich ===================== */
+const ME={info:null,prof:null};
+function buildMe(){$('#t-me').innerHTML=`<div class="wrap"><div class="hdr"><h1>Ich</h1></div>
+ <div class="card ill-card"><div class="ill">${enderSVG()}</div><div><b style="font-size:18px" id="me-name"></b><div class="sub" id="me-st"></div><div class="sub" id="me-v" style="margin-top:6px"></div></div></div>
+ <div class="sec"><h2>Slicer-Profil vom PC</h2><div class="list">
+  <div class="row"><span class="ri">${ic('sync')}</span><span class="rt"><b id="me-pc">–</b><small id="me-pcs"></small></span></div>
+  <button class="row tap" data-a="pickProf"><span class="ri">${ic('upload')}</span><span class="rt"><b>Profil importieren</b><small>3MF-Projekt oder Orca-Preset-Bundle vom PC</small></span>${ic('chev','chev')}</button>
+  <button class="row tap" data-a="profHelp"><span class="ri">${ic('info')}</span><span class="rt"><b>So überträgst du dein Profil</b><small>Einmalig oder automatisch per Sync-Ordner</small></span>${ic('chev','chev')}</button>
+  <button class="row tap" data-a="profClear"><span class="ri" style="background:rgba(229,72,77,.12);color:var(--err)">${ic('trash')}</span><span class="rt"><b>Importierte Profile löschen</b></span></button></div></div>
+ <div class="sec"><h2>Drucker</h2><div class="list">
+  <label class="row"><span class="ri">${ic('printer')}</span><span class="rt"><b>Name</b></span><input type="text" data-cfg="name" style="max-width:55%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.name)}"></label>
+  <label class="row"><span class="ri">${ic('server')}</span><span class="rt"><b>Moonraker</b><small>„proxy“ = über diesen Server</small></span><input type="text" data-cfg="host" placeholder="proxy" style="max-width:45%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.host)}"></label>
+  <label class="row"><span class="ri">${ic('camera')}</span><span class="rt"><b>Webcam-Stream</b></span><input type="url" data-cfg="webcam" placeholder="/webcam/?action=stream" style="max-width:55%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.webcam)}"></label>
+  <label class="row"><span class="ri">${ic('bulb')}</span><span class="rt"><b>Licht</b><small>${esc(CFG.lightSrc==='ha'?'HA · '+CFG.lightRef:'automatisch erkennen')}</small></span><input type="text" data-cfg="lightRef" placeholder="HA-Entität (optional)" style="max-width:50%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.lightSrc==='ha'?CFG.lightRef:'')}"></label>
+  <label class="row"><span class="ri">${ic('power')}</span><span class="rt"><b>Netzteil</b><small>${esc(CFG.psuSrc==='ha'?'HA · '+CFG.psuRef:'automatisch (Moonraker [power])')}</small></span><input type="text" data-cfg="psuRef" placeholder="HA-Entität (optional)" style="max-width:50%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.psuSrc==='ha'?CFG.psuRef:'')}"></label>
+  <label class="row"><span class="ri">${ic('home2')}</span><span class="rt"><b>Home Assistant</b><small>„proxy“ wenn bei der Installation angegeben</small></span><input type="text" data-cfg="haUrl" placeholder="proxy" style="max-width:45%;height:36px;text-align:right;border:0;background:transparent" value="${esc(CFG.haUrl)}"></label>
+ </div></div>
+ <div class="sec"><h2>App</h2><div class="list">
+  <div class="row"><span class="ri">${ic('moon')}</span><span class="rt"><b>Darstellung</b></span><div class="seg" style="width:190px">${[['auto','Auto'],['light','Hell'],['dark','Dunkel']].map(([v,n])=>`<button class="${CFG.theme===v?'on':''}" data-a="theme" data-v="${v}">${n}</button>`).join('')}</div></div>
+  <div class="row"><span class="ri">${ic('bell')}</span><span class="rt"><b>Benachrichtigung bei Druckende</b><small>solange die App geöffnet ist</small></span><button class="sw ${CFG.notify?'on':''}" data-a="notify" id="me-not"></button></div>
+  <div class="row"><span class="ri">${ic('info')}</span><span class="rt"><b>Demo-Modus</b><small>Alles ohne Drucker & Server ausprobieren</small></span><button class="sw ${CFG.demo?'on':''}" data-a="demo"></button></div>
+  <a class="row tap" id="me-tablet" href="#" target="_blank"><span class="ri">${ic('ext')}</span><span class="rt"><b>Tablet-Oberfläche öffnen</b></span>${ic('chev','chev')}</a>
+  <div class="row"><span class="ri">${ic('gear')}</span><span class="rt"><b>Slicer-Server</b><small id="me-srv">–</small></span></div>
+ </div></div><p class="sub" style="text-align:center;padding:4px 0 24px">S1 Mobile 1.0 · für Ender-3 S1 mit Klipper</p></div>`;
+ $('#me-tablet').href=location.protocol+'//'+location.hostname+'/';
+ $$('[data-cfg]').forEach(i=>i.addEventListener('change',()=>{const k=i.dataset.cfg,v=i.value.trim();
+  if(k==='lightRef'){CFG.lightSrc=v?'ha':'auto';CFG.lightRef=v}else if(k==='psuRef'){CFG.psuSrc=v?'ha':'auto';CFG.psuRef=v}else CFG[k]=v;
+  if((k==='lightRef'||k==='psuRef')&&v&&!CFG.haUrl)CFG.haUrl='proxy';
+  save();toast('Gespeichert');if(k==='host'||k==='haUrl')M.connect();else{pollHA();schedule()}}));
+ loadMe()}
+async function loadMe(){set('me-name',CFG.name);set('me-st',demoPr()?'Demo-Modus':online()?'Online':'Offline');
+ try{const [i,p]=await Promise.all([bk('/info'),bk('/profiles')]);ME.info=i;ME.prof=p;const c=p.counts;
+  set('me-pc',c.machine+c.process+c.filament?`${c.machine} Drucker · ${c.process} Prozess · ${c.filament} Filament`:'Noch nichts importiert');
+  set('me-pcs',c.machine?'Standard: '+(p.default.machine||''):'Bis dahin werden Orca-Systemprofile genutzt');
+  set('me-srv',i.orca?`OrcaSlicer ${i.orca}`+(i.sysprofiles?'':' · Systemprofile fehlen'):'OrcaSlicer nicht installiert');
+  set('me-v',p.default.machine?'Profil: '+p.default.machine:'')}
+ catch(e){set('me-srv','Nicht erreichbar: '+e.message);set('me-pc','–')}}
+function profHelp(){sheet(`<h3>Profil vom PC übertragen</h3><div class="help">
+ <p><b>Einfachster Weg – 3MF-Projekt:</b><br>In OrcaSlicer am PC deinen Ender-3 S1, deinen Prozess und deine Filamente auswählen (ruhig mit einem beliebigen Modell) und <b>Datei → Projekt speichern</b>. Die .3mf hier unter „Profil importieren“ hochladen. Drucker, Prozess und alle Filamente werden vollständig übernommen.</p>
+ <p><b>Alle eigenen Profile – Preset-Bundle:</b><br>OrcaSlicer: <b>Datei → Exportieren → Preset-Bundle exportieren</b> (Drucker-Bundle) → die .orca_printer-Datei importieren.</p>
+ <p><b>Automatisch synchron halten:</b><br>Den Orca-Benutzerordner vom PC (<b>%APPDATA%\\OrcaSlicer\\user</b> unter Windows, <b>~/Library/Application Support/OrcaSlicer/user</b> am Mac) per Syncthing oder Netzwerkfreigabe in den Sync-Ordner des Servers spiegeln:<br><code id="ph-sync" style="word-break:break-all"></code><br>Änderungen am PC sind dann sofort in der App.</p>
+ <p>Tipp: Damit Vorschaubilder auf dem Tablet erscheinen, im Druckerprofil G-Code-Miniaturen <b>96x96/PNG, 300x300/PNG</b> aktivieren.</p></div>
+ <button class="btn pri full" style="margin-top:8px" data-a="pickProf">${ic('upload')}Datei auswählen</button>`);set('ph-sync',(ME.info&&ME.info.sync_dir)||'/var/lib/s1-mobile/profiles/sync')}
+
+/* ===================== Navigation & Aktionen ===================== */
+function go(t){TAB=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===t));
+ if(t==='discover'&&!DS.items.length&&!DS.loading&&!DS.err)search();if(t==='projects')loadProjects();if(t==='me')buildMe();schedule()}
+const ACT={
+ tab:v=>{while(SCR.length)closeScreen();closeSheet();go(v)}, back:()=>closeScreen(), shClose:()=>closeSheet(), cfOk:()=>{const c=CB;closeSheet();if(c)c()},
+ g:v=>G(v).catch(()=>{}),
+ temp:v=>tempSheet(v), tempSet:v=>{const[h,t]=v.split(':');G(`SET_HEATER_TEMPERATURE HEATER=${h} TARGET=${t}`).then(()=>closeSheet()).catch(()=>{})},
+ tempApply:v=>{const t=+$('#ts-r').value;G(`SET_HEATER_TEMPERATURE HEATER=${v} TARGET=${t}`).then(()=>closeSheet()).catch(()=>{})},
+ fan:()=>fanSheet(), fanSet:v=>G(`M106 S${Math.round(v*2.55)}`).catch(()=>{}), speed:()=>speedSheet(), spdSet:v=>G(`M220 S${v}`).catch(()=>{}),
+ motion:()=>motionSheet(), jogStep:v=>{JS=+v;schedule()},
+ jog:v=>{const[a,d]=v.split(':');if(isPrinting())return toast('Während des Drucks gesperrt');if(!homed(a.toLowerCase()))return toast(`Achse ${a} erst referenzieren`);G(`SAVE_GCODE_STATE NAME=s1m\nG91\nG1 ${a}${(+d*JS).toFixed(2)} F${a==='Z'?600:6000}\nRESTORE_GCODE_STATE NAME=s1m`).catch(()=>{})},
+ filament:()=>filamentSheet(), fmat:v=>{FMAT=v;schedule()},
+ fLoad:()=>{if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');G(`LOAD_FILAMENT TEMP=${MATS[FMAT][0]}`).then(()=>toast('Filament geladen')).catch(()=>{});toast('Heizt auf und lädt…')},
+ fUnload:()=>{if((ST.print_stats||{}).state==='printing')return toast('Erst pausieren');G(`UNLOAD_FILAMENT TEMP=${MATS[FMAT][0]}`).then(()=>toast('Filament entladen')).catch(()=>{});toast('Heizt auf und entlädt…')},
+ light:()=>{const s=lightCfg();if(s)swSet(s,swState(s)!==true).catch(()=>{})}, psu:()=>psuToggle(),
+ psuOn:()=>{const p=psuCfg();if(p)swSet(p,true).then(()=>{toast('Netzteil an – Drucker startet');if(!demoPr())setTimeout(()=>{if(M.ok&&KL.state!=='ready')api('printer.firmware_restart').catch(()=>{})},8000)}).catch(()=>{})},
+ camFull:()=>{const c=$('#cam');if(c.requestFullscreen)c.requestFullscreen().catch(()=>{});else if(c.webkitRequestFullscreen)c.webkitRequestFullscreen()},
+ pause:()=>{const s=(ST.print_stats||{}).state;api(s==='paused'?'printer.print.resume':'printer.print.pause').catch(e=>toast(e.message,'err'))},
+ cancel:()=>confirmS('Druck wirklich abbrechen?','Abbrechen',()=>api('printer.print.cancel').catch(e=>toast(e.message,'err')),true),
+ reprint:()=>{const fn=(ST.print_stats||{}).filename;if(fn)confirmS(`„${esc(baseName(fn))}“ erneut drucken?`,'Drucken',()=>api('printer.print.start',{filename:fn}).catch(e=>toast(e.message,'err')))},
+ sheetFiles:()=>filesSheet(), history:()=>historySheet(),
+ fileAsk:v=>{const f=FILES[+v];if(!f)return;if(isPrinting())return toast('Drucker ist beschäftigt');confirmS(`„${esc(baseName(f.path))}“ drucken?`,'Drucken',()=>api('printer.print.start',{filename:f.path}).then(()=>toast('Druck gestartet')).catch(e=>toast(e.message,'err')))},
+ // Entdecken
+ ord:v=>{DS.ord=v;search()}, sugg:v=>{DS.q=v;$('#sq').value=v;DS.ord='best_match';search()}, moreRes:()=>search(true), retry:()=>search(),
+ model:(v,b)=>openModel(v,DS.items[+b.dataset.i]),
+ pasteLink:async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}const id=parsePrintables(t);
+  sheet(`<h3>Printables-Link öffnen</h3><input type="url" id="pl" placeholder="https://www.printables.com/model/…" value="${esc(id?t:'')}"><div class="btnrow" style="margin-top:12px"><button class="btn" data-a="shClose">Abbrechen</button><button class="btn pri" data-a="plGo">Öffnen</button></div><p class="sub" style="margin-top:10px">Tipp: Als installierte App kannst du Printables-Links auch direkt über „Teilen“ an S1 Mobile schicken.</p>`)},
+ plGo:()=>{const id=parsePrintables($('#pl').value);if(!id)return toast('Kein gültiger Printables-Link','err');closeSheet();openModel(id)},
+ pDl:async(v,b)=>{const el=topScreen()&&topScreen().el,m=el&&el._model;if(!m)return;const f=m.files[+v];b.disabled=true;b.innerHTML='<div class="spin" style="width:18px;height:18px"></div>';
+  try{const r=await bk('/printables/download',{json:{modelId:m.id,fileId:f.id,fileType:f.type,name:f.name,meta:{url:m.url,image:m.image,author:m.author,title:m.name}}});
+   await loadProjects();const mm=r.multi?r.multi[0]:r;toast('Geladen: '+f.name);b.disabled=false;b.textContent='Geladen ✓';if(mm.ext==='gcode')gcodeSheet(mm);else openSlicer(mm.id)}
+  catch(e){toast(e.message,'err');b.disabled=false;b.textContent='Erneut'}},
+ // Projekte
+ pickModel:()=>$('#f-model').click(), modelOpen:v=>openSlicer(v),
+ modelDel:v=>confirmS('Modell löschen?','Löschen',async()=>{try{await bk('/models/'+v,{method:'DELETE'});while(SCR.length)closeScreen();loadProjects()}catch(e){toast(e.message,'err')}},true),
+ gSend:async v=>{const[id,p]=v.split(':');try{await bk(`/models/${id}/send`,{json:{print:p==='1'}});closeSheet();toast(p==='1'?'Druck gestartet':'Gesendet');if(p==='1')ACT.tab('printer')}catch(e){toast(e.message,'err')}},
+ jobOpen:v=>{const j=PJ.jobs.find(x=>x.id===v)||(SL.jobData&&SL.jobData.id===v?SL.jobData:null);if(j)jobDetail(j);else bk('/jobs/'+v).then(jobDetail).catch(e=>toast(e.message,'err'))},
+ jobPrint:v=>jobSend(v,0,true), jobSend:v=>jobSend(v,0,false), jobSendI:v=>{const[id,i,p]=v.split(':');jobSend(id,+i,p==='1')},
+ slice:()=>startSlice(),
+ ov:(v,b)=>{const k=b.dataset.k;SL.ov[k]=v==='null'?null:(isNaN(+v)?v:+v);if(k==='scale'&&window.Viewer)window.Viewer.setScale(+v);renderSlicer()},
+ ovt:(v,b)=>{const k=b.dataset.k;SL.ov[k]=!SL.ov[k];renderSlicer()},
+ // Ich
+ pickProf:()=>$('#f-prof').click(), profHelp:()=>profHelp(),
+ profClear:()=>confirmS('Alle importierten PC-Profile löschen? (Sync-Ordner bleibt unberührt.)','Löschen',()=>bk('/profiles/clear',{json:{}}).then(()=>{toast('Gelöscht');loadMe()}).catch(e=>toast(e.message,'err')),true),
+ theme:v=>{CFG.theme=v;save();applyTheme();buildMe()},
+ notify:async()=>{if(!CFG.notify&&'Notification' in window){const p=await Notification.requestPermission().catch(()=>'denied');if(p!=='granted')return toast('Benachrichtigungen wurden nicht erlaubt','err')}CFG.notify=!CFG.notify;save();$('#me-not').classList.toggle('on',CFG.notify)},
+ demo:()=>{if(FILE)return toast('Lokal geöffnet – Demo bleibt an');CFG.demo=!CFG.demo;save();Demo.stop();M.connect();PJ.loaded=false;DS.items=[];DS.err='';buildMe();toast(CFG.demo?'Demo-Modus an':'Demo-Modus aus')},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const f=ACT[b.dataset.a];if(f){if(b.tagName==='A'&&b.getAttribute('href')==='#')e.preventDefault();f(b.dataset.v,b,e)}});
+document.addEventListener('input',e=>{const t=e.target;
+ if(t.id==='ts-r'){t._t=1;set('ts-t','Ziel: '+t.value+' °C')} if(t.id==='fs-r'){t._t=1;set('fs-v',t.value+'%')}
+ if(t.dataset.ovi&&SL.ov)SL.ov[t.dataset.ovi]=t.value});
+document.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='fs-r'){t._t=0;G(`M106 S${Math.round(t.value*2.55)}`).catch(()=>{})}
+ if(t.dataset.sel){SL.sel[t.dataset.sel]=t.value;if(t.dataset.sel==='machine')loadProfiles(t.value)}});
+$('#f-model').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f){go('projects');doUpload(f)}});
+$('#f-prof').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;closeSheet();toast('Importiere '+f.name+' …');
+ try{const r=await upload('/profiles/import',f);const by=t=>r.added.filter(x=>x.type===t).length;toast(`Importiert: ${by('machine')} Drucker, ${by('process')} Prozess, ${by('filament')} Filament`);loadMe()}catch(err){toast(err.message,'err')}});
+
+/* ===================== Demo ===================== */
+function demoImg(seed,label){const H=[210,25,140,280,45,190,330,95][seed%8],s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${H} 60% 92%)"/><stop offset="1" stop-color="hsl(${H} 45% 78%)"/></linearGradient></defs><rect width="400" height="300" fill="url(#g)"/>
+ <g transform="translate(200 170)"><ellipse cx="0" cy="62" rx="120" ry="20" fill="rgba(0,0,0,.12)"/>${seed%3===0?`<path d="M-90 20L0-30L90 20L0 70Z" fill="hsl(${H} 70% 55%)"/><path d="M-90 20v30L0 100V70Z" fill="hsl(${H} 60% 42%)"/><path d="M90 20v30L0 100V70Z" fill="hsl(${H} 60% 35%)"/>`:seed%3===1?`<path d="M-50 60V-40a50 50 0 0 1 100 0V60Z" fill="hsl(${H} 70% 55%)"/><path d="M-50 60V-40a50 50 0 0 1 30-46V60Z" fill="hsl(${H} 70% 66%)"/>`:`<circle cx="0" cy="0" r="62" fill="hsl(${H} 70% 55%)"/><circle cx="-18" cy="-20" r="20" fill="hsl(${H} 80% 72%)"/>`}</g></svg>`;return 'data:image/svg+xml,'+encodeURIComponent(s)}
+const Demo={on:false,t:0,rel:false,pw:{drucker:'on',licht:'on'},
+ items:['Kabelhalter modular','Ender-3 S1 Werkzeughalter','Gridfinity Basis 3×3','3DBenchy','Spulenhalter oben drauf','Filament-Clip 1,75 mm','Kopfhörerständer','Voronoi Pflanztopf','Schraubendreher-Ständer','Handyhalter Schreibtisch','Ender Lüfterkanal 5015','Schubladen-Organizer'].map((n,i)=>({id:String(100000+i*7919),name:n,slug:n.toLowerCase().replace(/\W+/g,'-'),likes:[812,2310,15400,98000,640,3300,1220,5400,410,2700,880,1900][i],downloads:[4100,9800,72000,510000,2200,15000,6100,22000,1500,13000,3700,8000][i],author:['makerjo','ender_fan','zack','CreativeTools','printlab','filafix','deskworks','planty','toolbox','mobi','airflow','neatnik'][i],image:demoImg(i)})),
+ models:[],jobs:[],mc:0,
+ start(){if(this.on)return;this.on=true;for(const k in ST)delete ST[k];
+  Object.assign(ST,{print_stats:{state:'printing',filename:'S1 Mobile/Gridfinity_Basis_0.20mm.gcode',print_duration:3140,info:{current_layer:38,total_layer:120}},virtual_sdcard:{progress:0.31},extruder:{temperature:219.6,target:220},heater_bed:{temperature:59.9,target:60},
+   fan:{speed:1},gcode_move:{speed_factor:1},toolhead:{position:[110,100,7.8,0],homed_axes:'xyz'},'temperature_host raspberry':{temperature:46.8},'output_pin caselight':{value:1}});
+  KL.state='ready';KL.metaFile='';this.t=setInterval(()=>this.tick(),1000);schedule()},
+ stop(){if(!this.on)return;this.on=false;clearInterval(this.t);for(const k in ST)delete ST[k];KL.meta=null;KL.metaFile=''},
+ tick(){const ps=ST.print_stats;['extruder','heater_bed'].forEach(h=>{const o=ST[h];o.temperature+=(o.target>0?(o.target-o.temperature)*0.3:(23-o.temperature)*0.05)+(Math.random()-.5)*.3});
+  if(ps.state==='printing'){ps.print_duration++;const v=ST.virtual_sdcard;v.progress=Math.min(1,v.progress+0.0015*ST.gcode_move.speed_factor);ps.info={current_layer:Math.round(v.progress*120),total_layer:120};
+   ST.toolhead.position=[60+Math.random()*110,70+Math.random()*90,0.2+v.progress*24,0];if(v.progress>=1){ps.state='complete';ST.extruder.target=0;ST.heater_bed.target=0}}schedule()},
+ sleep:ms=>new Promise(r=>setTimeout(r,ms)),
+ async gcode(s){for(const raw of s.split('\n')){const l=raw.trim().toUpperCase(),P=k=>{const m=l.match(new RegExp('(?:^|\\s)'+k+'=?(-?[\\d.]+)'));return m?+m[1]:null},w=l.split(/\s/)[0],th=ST.toolhead;
+  if(w==='SET_HEATER_TEMPERATURE'){const h=(l.match(/HEATER=(\S+)/)||[])[1];if(h)ST[h.toLowerCase()].target=P('TARGET')||0}
+  else if(w==='M106')ST.fan.speed=(P('S')||0)/255;else if(w==='M220')ST.gcode_move.speed_factor=(P('S')||100)/100;
+  else if(w==='SET_PIN')ST['output_pin caselight'].value=P('VALUE')||0;else if(w==='G28'){await this.sleep(800);th.homed_axes='xyz';th.position=[147,154,10,0]}
+  else if(w==='G91')this.rel=true;else if(w==='G90')this.rel=false;else if(w==='M84')th.homed_axes='';
+  else if(w==='G1'){['X','Y','Z'].forEach((a,i)=>{const v=P(a);if(v!=null)th.position[i]=this.rel?th.position[i]+v:v});th.position=th.position.slice()}
+  else if(w==='RESTORE_GCODE_STATE')this.rel=false;
+  else if(w==='LOAD_FILAMENT'||w==='UNLOAD_FILAMENT'){ST.extruder.target=P('TEMP');await this.sleep(2500)}}schedule();return 'ok'},
+ async api(m,p){await this.sleep(120);const ps=ST.print_stats;
+  switch(m){case 'printer.print.pause':ps.state='paused';break;case 'printer.print.resume':ps.state='printing';break;case 'printer.print.cancel':ps.state='cancelled';ST.extruder.target=0;ST.heater_bed.target=0;break;
+   case 'printer.print.start':Object.assign(ps,{state:'printing',filename:p.filename,print_duration:0});ST.virtual_sdcard.progress=0;ST.extruder.target=210;ST.heater_bed.target=60;break;
+   case 'server.files.list':return ['S1 Mobile/Gridfinity_Basis_0.20mm.gcode','S1 Mobile/Kabelhalter_0.20mm.gcode','Benchy.gcode','Spulenhalter.gcode'].map((path,i)=>({path,modified:Date.now()/1000-i*90000,size:2e6+i*7e5}));
+   case 'server.files.metadata':{const i=['Grid','Kabel','Bench','Spul'].findIndex(x=>p.filename.includes(x));return {filename:p.filename,estimated_time:[14400,3600,2700,9000][i]||5000,filament_weight_total:[48,11,13,30][i]||20,_thumb:demoImg([2,0,3,4][i]||1)}}
+   case 'server.history.list':return {jobs:[{filename:'Benchy.gcode',status:'completed',end_time:Date.now()/1000-86400,print_duration:2950},{filename:'Kabelhalter_0.20mm.gcode',status:'completed',end_time:Date.now()/1000-2*86400,print_duration:3500},{filename:'Test.gcode',status:'cancelled',end_time:Date.now()/1000-4*86400,print_duration:600}]};
+   case 'machine.device_power.devices':return {devices:Object.keys(this.pw).map(device=>({device,status:this.pw[device]}))};
+   case 'machine.device_power.post_device':this.pw[p.device]=p.action;return {[p.device]:p.action};
+   case 'printer.firmware_restart':break}
+  schedule();return {}},
+ async ha(path,body){return {state:'on'}},
+ async bk(path,o){await this.sleep(250);const meth=o.method||(o.json?'POST':'GET');let m;
+  if(path==='/info')return {orca:'2.3.1 (Demo)',sysprofiles:true,sync_dir:'/var/lib/s1-mobile/profiles/sync'};
+  if(path.startsWith('/profiles')&&meth==='GET'){const p={machine:[{name:'Ender-3 S1 Klipper · PC',src:'import'},{name:'Creality Ender-3 S1 0.4 nozzle',src:'system'}],process:[{name:'0.20mm Standard Klipper · PC',src:'import'},{name:'0.16mm Optimal @Creality Ender3S1',src:'system'},{name:'0.20mm Standard @Creality Ender3S1',src:'system'}],filament:[{name:'Geeetech PLA · PC',src:'import'},{name:'Sunlu PETG · PC',src:'import'},{name:'Generic PLA @Creality',src:'system'},{name:'Generic PETG @Creality',src:'system'}]};
+   return {profiles:p,default:{machine:p.machine[0].name,process:p.process[0].name,filament:p.filament[0].name},counts:{machine:1,process:1,filament:2}}}
+  if(path==='/profiles/clear')return {ok:true};
+  if(path.startsWith('/printables/search')){const q=decodeURIComponent((path.match(/q=([^&]*)/)||[])[1]||'').toLowerCase(),ord=(path.match(/ordering=(\w+)/)||[])[1];let it=this.items.filter(x=>!q||x.name.toLowerCase().includes(q.split(' ')[0]));
+   if(ord==='latest')it=it.slice().reverse();if(ord==='popular'||ord==='makes_count')it=it.slice().sort((a,b)=>b.downloads-a.downloads);if(ord==='rating')it=it.slice().sort((a,b)=>b.likes-a.likes);return {items:/offset=0/.test(path)?it:[]}}
+  if((m=path.match(/^\/printables\/model\/(\d+)/))){const x=this.items.find(i=>i.id===m[1])||this.items[0];const i=this.items.indexOf(x);
+   return Object.assign({},x,{summary:'Demo-Modell – im echten Betrieb kommen Bilder, Beschreibung und Dateien direkt von Printables.',images:[x.image,demoImg(i+3),demoImg(i+5)],files:[{id:'1',name:x.slug+'.stl',size:2.4e6,type:'stl'},{id:'2',name:x.slug+'_ohne_Stuetzen.3mf',size:5.1e6,type:'stl'},{id:'3',name:x.slug+'_MK4.gcode',size:9e6,type:'gcode'}]})}
+  if(path==='/printables/download'){const f=o.json;return this.addModel(f.name,f.meta&&f.meta.image,'printables')}
+  if(path==='/models')return {models:this.models};
+  if((m=path.match(/^\/models\/(\w+)$/))&&meth==='DELETE'){this.models=this.models.filter(x=>x.id!==m[1]);return {ok:true}}
+  if(path.match(/^\/models\/\w+\/send/))return {ok:true};
+  if(path==='/jobs')return {jobs:this.jobs};
+  if(path==='/slice'){const j={id:'j'+(++this.mc),state:'queued',progress:'In Warteschlange',model_name:(this.models.find(x=>x.id===o.json.model)||{}).name,req:o.json,created:Date.now()/1000};this.jobs.unshift(j);
+   setTimeout(()=>{j.state='running';j.progress='OrcaSlicer läuft';j.started=Date.now()/1000},700);
+   setTimeout(()=>{j.state='done';j.progress='Fertig';const s=(o.json.overrides||{}).scale||100;j.results=[{file:j.model_name.replace(/\W+/g,'_')+'_0.20mm.gcode',time:'1h 12m 30s',weight:(14.2*s*s*s/1e6).toFixed(2),length:String(Math.round(4700*s*s*s/1e6)),layers:'96',size:3.1e6}]},4200);return Object.assign({},j)}
+  if((m=path.match(/^\/jobs\/(\w+)\/send/)))return {ok:true,path:'S1 Mobile/demo.gcode'};
+  if((m=path.match(/^\/jobs\/(\w+)/)))return Object.assign({},this.jobs.find(x=>x.id===m[1]));
+  throw new Error('Demo: '+path)},
+ addModel(name,image,source){const ext=(name.split('.').pop()||'stl').toLowerCase();const m={id:Math.random().toString(16).slice(2,14),name:name.replace(/\.\w+$/,''),file:name,ext,size:2.4e6,added:Date.now()/1000,source,image};this.models.unshift(m);return m},
+ async upload(path,file,onp){for(let i=1;i<=5;i++){await this.sleep(120);onp&&onp(i/5)}if(path==='/profiles/import')return {added:[{type:'machine',name:'Ender-3 S1 Klipper · PC'},{type:'process',name:'0.20mm Standard Klipper · PC'},{type:'filament',name:'PLA · PC'}]};return this.addModel(file.name,null,'upload')}};
+Demo.addModel('Kalibrierwürfel.stl',null,'upload');Demo.addModel('Gridfinity Basis 3x3.3mf',demoImg(2),'printables');
+
+/* ===================== Start ===================== */
+(function init(){
+ $$('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
+ buildPrinter();buildDiscover();buildProjects();
+ // Share-Target / Deep-Link: ?url=…printables.com/model/123…
+ const q=new URLSearchParams(location.search),shared=parsePrintables([q.get('url'),q.get('text'),q.get('title')].join(' '));
+ const start=q.get('tab')||(shared?'discover':'printer');
+ M.connect();go(start);if(shared){try{history.replaceState(null,'','/')}catch(e){}openModel(shared)}
+ if('serviceWorker' in navigator&&window.isSecureContext&&!FILE)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!demoPr()&&!M.ok)M.connect()});
+})();
+</script>
+<script type="module">
+/* ===================== 3D-Vorschau (three.js) ===================== */
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+import {ThreeMFLoader} from 'three/addons/loaders/3MFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+let R=null;
+function dispose(){if(!R)return;cancelAnimationFrame(R.raf);R.ro&&R.ro.disconnect();R.renderer.dispose();R.renderer.domElement.remove();R=null}
+function mount(el,url,ext,getScale){dispose();if(!el)return;const msg=el.querySelector('#vmsg');
+ const dark=matchMedia('(prefers-color-scheme: dark)').matches&&document.documentElement.dataset.theme!=='light'||document.documentElement.dataset.theme==='dark';
+ const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));el.prepend(renderer.domElement);
+ const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(38,1,1,5000);
+ scene.add(new THREE.HemisphereLight(0xffffff,dark?0x223344:0xb0b4bb,1.6));const dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(120,260,180);scene.add(dl);
+ // Druckbett 220×220 (Ender-3 S1), Mitte = Ursprung, Y oben
+ const plate=new THREE.Mesh(new THREE.BoxGeometry(220,2,220),new THREE.MeshStandardMaterial({color:dark?0x2b2f36:0x3a3530,roughness:.9}));plate.position.y=-1;scene.add(plate);
+ const grid=new THREE.GridHelper(220,11,dark?0x4a5160:0x6b645b,dark?0x3a404c:0x57514a);grid.position.y=.05;scene.add(grid);
+ const controls=new OrbitControls(cam,renderer.domElement);controls.enableDamping=true;controls.target.set(0,20,0);controls.maxPolarAngle=Math.PI*0.495;
+ cam.position.set(190,200,250);
+ R={renderer,scene,cam,controls,obj:null,size:null,raf:0};
+ const fit=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};fit();R.ro=new ResizeObserver(fit);R.ro.observe(el);
+ const loop=()=>{R.raf=requestAnimationFrame(loop);controls.update();renderer.render(scene,cam)};loop();
+ const mat=new THREE.MeshStandardMaterial({color:0x3b82f6,roughness:.55,metalness:.05});
+ const place=(o)=>{const g=new THREE.Group();o.traverse(c=>{if(c.isMesh)c.material=mat});g.add(o);
+  o.rotation.x=-Math.PI/2;      // Druckdaten sind Z-oben
+  const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());o.position.sub(new THREE.Vector3(c.x,b.min.y,c.z));
+  R.size=[s.x,s.z,s.y];R.obj=g;scene.add(g);setScale(getScale?getScale():100);msg&&(msg.hidden=true);
+  window.dispatchEvent(new Event('viewer-ready'))};
+ if(!url){place(new THREE.Mesh(new THREE.TorusKnotGeometry(22,7,160,24).rotateX(Math.PI/2).translate(0,0,30),mat));return}
+ ext=(ext||'').toLowerCase();
+ if(!['stl','3mf','obj'].includes(ext)){msg.textContent='Keine Vorschau für '+ext.toUpperCase()+' – Slicen funktioniert trotzdem.';return}
+ fetch(url).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return ext==='obj'?r.text():r.arrayBuffer()}).then(d=>{if(!R)return;
+  if(ext==='stl'){const geo=new STLLoader().parse(d);geo.computeVertexNormals();place(new THREE.Mesh(geo,mat))}
+  else if(ext==='3mf'){const grp=new ThreeMFLoader().parse(d);grp.rotation.set(0,0,0);const w=new THREE.Group();w.add(grp);place(w)}
+  else place(new OBJLoader().parse(d))}).catch(e=>{if(msg)msg.textContent='Vorschau fehlgeschlagen: '+e.message})}
+function setScale(p){if(!R||!R.obj)return;const k=(+p||100)/100;R.obj.scale.setScalar(k);const s=R.size;const m=Math.max(s[0],s[1],s[2])*k;
+ R.controls.target.set(0,s[2]*k*0.4,0);const d=Math.max(160,m*2.4);R.cam.position.set(d*0.62,d*0.62,d*0.85);
+ window.dispatchEvent(new Event('viewer-ready'))}
+function dims(p){if(!R||!R.size)return null;const k=(+p||100)/100;return R.size.map(v=>Math.round(v*k))}
+window.Viewer={mount,dispose,setScale,dims};
+window.addEventListener('viewer-ready',()=>{if(typeof schedule==='function')schedule()});
+</script>
+</body>
+</html>
