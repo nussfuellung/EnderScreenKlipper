@@ -576,9 +576,9 @@ async function openModel(id,pre){const m=Object.assign({id},pre||{});
  catch(e){el.querySelector('#md').innerHTML=`<div class="empty">${ic('info')}<div><b>Konnte Modell nicht laden</b></div><div class="sub">${esc(e.message)}</div></div>`}}
 
 /* ===================== Tab: Projekte ===================== */
-const PJ={models:[],jobs:[],loaded:false,poll:0,up:null};
+const PJ={models:[],jobs:[],loaded:false,poll:0,up:null,edit:false};
 function buildProjects(){$('#t-projects').innerHTML=`<div class="wrap">
- <div class="hdr"><h1>Projekte</h1><button class="ibtn tap" data-a="pickModel" aria-label="Modell hochladen">${ic('plus')}</button></div>
+ <div class="hdr"><h1>Projekte</h1><button class="btn sm ghost" data-a="pjEdit" id="pj-ed">Bearbeiten</button><button class="ibtn tap" data-a="pickModel" aria-label="Modell hochladen">${ic('plus')}</button></div>
  <div id="pj-up"></div><div id="pj-jobs"></div><div class="sec"><h2>Modelle</h2><div id="pj-models"></div></div></div>`;renderProjects()}
 async function loadProjects(){try{const [a,b]=await Promise.all([bk('/models'),bk('/jobs')]);PJ.models=a.models||[];PJ.jobs=b.jobs||[];PJ.loaded=true;PJ.err=''}catch(e){PJ.err=e.message;PJ.loaded=true}
  renderProjects();schedule();clearTimeout(PJ.poll);if(PJ.jobs.some(j=>j.state==='queued'||j.state==='running'))PJ.poll=setTimeout(loadProjects,1500)}
@@ -586,14 +586,16 @@ function modelIcon(m){return m.image?`<img src="${esc(m.image)}" alt="">`:ic(m.e
 function renderProjects(){const up=$('#pj-up');if(!up)return;
  html(up,PJ.up?'u'+PJ.up.name:'n',PJ.up?`<div class="sec"><div class="card pad"><div style="display:flex;gap:10px;align-items:center"><div class="spin"></div><b style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(PJ.up.name)}</b><span class="sub" id="up-p"></span></div><div class="prog-up"><i id="up-b"></i></div></div></div>`:'');
  if(PJ.up){set('up-p',r0(PJ.up.p*100)+'%');const b=$('#up-b');if(b)b.style.width=(PJ.up.p*100)+'%'}
- const jobs=PJ.jobs.slice(0,6);
- html($('#pj-jobs'),JSON.stringify(jobs.map(j=>[j.id,j.state,j.progress])),jobs.length?`<div class="sec"><h2>Slice-Aufträge</h2><div class="list">${jobs.map(j=>{const r=(j.results||[])[0]||{};
-  const right=j.state==='done'?`<button class="btn sm pri" data-a="jobPrint" data-v="${j.id}">${ic('play')}Drucken</button>`:j.state==='error'?`<span class="bad">Fehler</span>`:`<div class="spin"></div>`;
+ const ed=PJ.edit,jobs=ed?PJ.jobs:PJ.jobs.slice(0,6);set('pj-ed',ed?'Fertig':'Bearbeiten');
+ const delB=(a,v)=>`<button class="ibtn tap" style="background:rgba(229,72,77,.12);color:var(--err);box-shadow:none" data-a="${a}" data-v="${v}" aria-label="Löschen">${ic('trash')}</button>`;
+ html($('#pj-jobs'),ed+JSON.stringify(jobs.map(j=>[j.id,j.state,j.progress])),jobs.length?`<div class="sec"><h2 style="display:flex;justify-content:space-between">Slice-Aufträge${ed&&PJ.jobs.some(j=>j.state==='done'||j.state==='error')?'<button class="sub" style="color:var(--err);text-transform:none" data-a="pjClearJobs">Fertige löschen</button>':''}</h2><div class="list">${jobs.map(j=>{const r=(j.results||[])[0]||{};
+  const right=ed?delB('jobDel',j.id):j.state==='done'?`<button class="btn sm pri" data-a="jobPrint" data-v="${j.id}">${ic('play')}Drucken</button>`:j.state==='error'?`<span class="bad">Fehler</span>`:`<div class="spin"></div>`;
   return `<div class="row"><button class="ri tap" data-a="jobOpen" data-v="${j.id}" style="${j.state==='error'?'background:rgba(229,72,77,.12);color:var(--err)':''}">${ic(j.state==='done'?'check':j.state==='error'?'info':'sliders')}</button><button class="rt tap" style="text-align:left" data-a="jobOpen" data-v="${j.id}"><b>${esc(j.model_name)}</b><small>${j.state==='done'?esc([r.time,r.weight?r.weight+' g':''].filter(Boolean).join(' · ')):j.state==='error'?'Antippen für Details':esc(j.progress||'')+(j.position>1?' (Platz '+j.position+')':'')}</small></button>${right}</div>`}).join('')}</div></div>`:'');
  const ml=$('#pj-models');
  if(!PJ.loaded){html(ml,'ld','<div class="empty"><div class="spin" style="margin:0 auto"></div></div>');return}
  if(PJ.err&&!PJ.models.length){html(ml,'e'+PJ.err,`<div class="empty">${ic('server')}<div><b>Slicer-Server nicht erreichbar</b></div><div class="sub">${esc(PJ.err)}</div></div>`);return}
- html(ml,JSON.stringify(PJ.models.map(m=>m.id)),PJ.models.length?`<div class="list">${PJ.models.map(m=>`<button class="row tap" data-a="modelOpen" data-v="${m.id}"><span class="thumb">${modelIcon(m)}</span><span class="rt"><b>${esc(m.name)}</b><small>${m.ext.toUpperCase()} · ${fmtSize(m.size)} · ${fmtDate(m.added)}${m.source==='printables'?' · Printables':''}</small></span>${ic('chev','chev')}</button>`).join('')}</div>`
+ html(ml,ed+JSON.stringify(PJ.models.map(m=>m.id)),PJ.models.length?`<div class="list">${PJ.models.map(m=>{const inner=`<span class="thumb">${modelIcon(m)}</span><span class="rt"><b>${esc(m.name)}</b><small>${m.ext.toUpperCase()} · ${fmtSize(m.size)} · ${fmtDate(m.added)}${m.source==='printables'?' · Printables':''}</small></span>`;
+  return ed?`<div class="row">${inner}${delB('modelDel',m.id)}</div>`:`<button class="row tap" data-a="modelOpen" data-v="${m.id}">${inner}${ic('chev','chev')}</button>`}).join('')}</div>`
   :`<div class="card empty">${ic('cube')}<div><b>Noch keine Modelle</b></div><div class="sub" style="margin:6px 0 14px">Lade eine STL/3MF hoch oder hol dir eins aus „Entdecken“.</div><button class="btn pri" data-a="pickModel">${ic('upload')}Modell hochladen</button></div>`)}
 async function doUpload(file){if(!file)return;PJ.up={name:file.name,p:0};renderProjects();
  try{const m=await upload('/models/upload',file,p=>{PJ.up.p=p;renderProjects()});PJ.up=null;await loadProjects();toast('Hochgeladen: '+file.name);
@@ -611,7 +613,7 @@ async function openSlicer(mid){
   <div class="sec"><h2>Profil</h2><div class="list" id="sl-prof"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div></div>
   <div class="sec"><h2>Einstellungen</h2><div class="list" id="sl-opt"></div></div>
   <div class="sec"><details class="card"><summary class="pad" style="font-weight:600;cursor:pointer">Erweitert</summary><div id="sl-adv" style="padding:0 14px 14px"></div></details></div>`,
-  ()=>renderSlicer(),{sticky:`<div id="sl-act"></div>`,onClose:()=>{if(window.Viewer)window.Viewer.dispose();SL.model=null;clearTimeout(SL.poll)}});
+  ()=>renderSlicer(),{right:`<button class="ibtn tap" data-a="modelDel" data-v="${m.id}" aria-label="Modell löschen">${ic('trash')}</button>`,sticky:`<div id="sl-act"></div>`,onClose:()=>{if(window.Viewer)window.Viewer.dispose();SL.model=null;clearTimeout(SL.poll)}});
  renderSlicer();loadProfiles();
  const tryV=(n=0)=>{if(window.Viewer)window.Viewer.mount($('#vw'),demoAll()?null:`/api/models/${m.id}/file`,m.ext,()=>OPTS().scale);else if(n<40)setTimeout(()=>tryV(n+1),150);else{const v=$('#vmsg');if(v)v.textContent='3D-Vorschau nicht verfügbar (keine Internetverbindung zum Laden von three.js)'}};tryV()}
 const OPTS=()=>SL.ov||OPT;
@@ -663,7 +665,8 @@ function jobDetail(j){const r=j.results||[];sheet(`<h3>${esc(j.model_name)}</h3>
  ${j.state==='error'?`<p class="bad" style="white-space:pre-wrap">${esc(String(j.error).split('\n')[0])}</p><div class="logbox">${esc(j.log||j.error)}</div>`:''}
  ${r.map((x,i)=>`<div class="card pad" style="margin-top:10px;box-shadow:none;background:var(--card2)"><b>${esc(x.file)}</b><div class="sub">${esc([x.time,x.weight?x.weight+' g':'',x.layers?x.layers+' Schichten':'',fmtSize(x.size)].filter(Boolean).join(' · '))}</div>
   <div class="btnrow" style="margin-top:10px"><a class="btn sm" href="/api/jobs/${j.id}/gcode/${i}" download>${ic('download')}</a><button class="btn sm" data-a="jobSendI" data-v="${j.id}:${i}:0">Senden</button><button class="btn sm pri" data-a="jobSendI" data-v="${j.id}:${i}:1">Drucken</button></div></div>`).join('')}
- <p class="sub" style="margin-top:12px">${esc(Object.entries((j.req||{})).filter(([k])=>['machine','process','filament'].includes(k)).map(([k,v])=>v).join(' · '))}</p>`)}
+ <p class="sub" style="margin-top:12px">${esc(Object.entries((j.req||{})).filter(([k])=>['machine','process','filament'].includes(k)).map(([k,v])=>v).join(' · '))}</p>
+ <button class="btn ghost full" style="margin-top:12px;color:var(--err)" data-a="jobDel" data-v="${j.id}">${ic('trash')}${j.state==='running'||j.state==='queued'?'Abbrechen & löschen':'Auftrag löschen'}</button>`)}
 async function jobSend(id,idx,print){if(print&&isPrinting())return toast('Drucker ist beschäftigt – erst nach dem aktuellen Druck','err');
  try{const r=await bk(`/jobs/${id}/send`,{json:{index:idx,print}});toast(print?'Druck gestartet':'An Drucker gesendet: '+r.path);closeSheet();if(print){while(SCR.length)closeScreen();go('printer')}}catch(e){toast(e.message,'err')}}
 function gcodeSheet(m){sheet(`<h3>${esc(m.name)}</h3><p class="sub">Fertiger G-Code (${fmtSize(m.size)}). Nur drucken, wenn er für den Ender-3 S1 erstellt wurde!</p>
@@ -749,7 +752,10 @@ const ACT={
   catch(e){toast(e.message,'err');b.disabled=false;b.textContent='Erneut'}},
  // Projekte
  pickModel:()=>$('#f-model').click(), modelOpen:v=>openSlicer(v),
- modelDel:v=>confirmS('Modell löschen?','Löschen',async()=>{try{await bk('/models/'+v,{method:'DELETE'});while(SCR.length)closeScreen();loadProjects()}catch(e){toast(e.message,'err')}},true),
+ pjEdit:()=>{PJ.edit=!PJ.edit;renderProjects()},
+ jobDel:v=>{const j=PJ.jobs.find(x=>x.id===v)||{};confirmS(j.state==='running'||j.state==='queued'?'Slicen abbrechen und Auftrag löschen?':'Auftrag und G-Code löschen? (Bereits an den Drucker gesendete Dateien bleiben dort.)','Löschen',async()=>{try{await bk('/jobs/'+v,{method:'DELETE'});if(SL.job===v){SL.job=null;SL.jobData=null;renderSlicer()}loadProjects()}catch(e){toast(e.message,'err')}},true)},
+ pjClearJobs:()=>{const ids=PJ.jobs.filter(j=>j.state==='done'||j.state==='error').map(j=>j.id);confirmS(`${ids.length} fertige Aufträge löschen?`,'Löschen',async()=>{for(const id of ids){try{await bk('/jobs/'+id,{method:'DELETE'})}catch(e){}}loadProjects()},true)},
+ modelDel:v=>confirmS(`„${esc((PJ.models.find(m=>m.id===v)||{}).name||'Modell')}“ löschen?`,'Löschen',async()=>{try{await bk('/models/'+v,{method:'DELETE'});while(SCR.length)closeScreen();loadProjects()}catch(e){toast(e.message,'err')}},true),
  gSend:async v=>{const[id,p]=v.split(':');try{await bk(`/models/${id}/send`,{json:{print:p==='1'}});closeSheet();toast(p==='1'?'Druck gestartet':'Gesendet');if(p==='1')ACT.tab('printer')}catch(e){toast(e.message,'err')}},
  jobOpen:v=>{const j=PJ.jobs.find(x=>x.id===v)||(SL.jobData&&SL.jobData.id===v?SL.jobData:null);if(j)jobDetail(j);else bk('/jobs/'+v).then(jobDetail).catch(e=>toast(e.message,'err'))},
  jobPrint:v=>jobSend(v,0,true), jobSend:v=>jobSend(v,0,false), jobSendI:v=>{const[id,i,p]=v.split(':');jobSend(id,+i,p==='1')},
@@ -822,6 +828,7 @@ const Demo={on:false,t:0,rel:false,pw:{drucker:'on',licht:'on'},
   if((m=path.match(/^\/models\/(\w+)$/))&&meth==='DELETE'){this.models=this.models.filter(x=>x.id!==m[1]);return {ok:true}}
   if(path.match(/^\/models\/\w+\/send/))return {ok:true};
   if(path==='/jobs')return {jobs:this.jobs};
+  if((m=path.match(/^\/jobs\/(\w+)$/))&&meth==='DELETE'){this.jobs=this.jobs.filter(x=>x.id!==m[1]);return {ok:true}}
   if(path==='/slice'){const j={id:'j'+(++this.mc),state:'queued',progress:'In Warteschlange',model_name:(this.models.find(x=>x.id===o.json.model)||{}).name,req:o.json,created:Date.now()/1000};this.jobs.unshift(j);
    setTimeout(()=>{j.state='running';j.progress='OrcaSlicer läuft';j.started=Date.now()/1000},700);
    setTimeout(()=>{j.state='done';j.progress='Fertig';const s=(o.json.overrides||{}).scale||100;j.results=[{file:j.model_name.replace(/\W+/g,'_')+'_0.20mm.gcode',time:'1h 12m 30s',weight:(14.2*s*s*s/1e6).toFixed(2),length:String(Math.round(4700*s*s*s/1e6)),layers:'96',size:3.1e6}]},4200);return Object.assign({},j)}

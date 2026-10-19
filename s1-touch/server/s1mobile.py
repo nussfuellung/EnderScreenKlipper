@@ -8,7 +8,7 @@ S1 Mobile – Backend für die Handy-App
   * Upload / Druckstart über Moonraker
 Nur Python-Standardbibliothek. Lauscht standardmäßig auf 127.0.0.1:8090 (nginx davor).
 """
-import glob, http.server, json, os, re, shutil, socketserver, subprocess, sys, threading, time
+import glob, http.server, json, os, re, shutil, signal, socketserver, subprocess, sys, threading, time
 import traceback, urllib.error, urllib.parse, urllib.request, uuid, zipfile, queue
 
 E = os.environ.get
@@ -614,7 +614,7 @@ def run_job(job):
     logp = os.path.join(jd, "slicer.log")
     env = dict(os.environ, HOME=DATA, LC_ALL="C.UTF-8")
     with open(logp, "wb") as lf:
-        p = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT, cwd=jd, env=env)
+        p = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT, cwd=jd, env=env, start_new_session=True)
         job["pid"] = p.pid
         try:
             rc = p.wait(timeout=SLICE_TIMEOUT)
@@ -687,6 +687,8 @@ def tail_file(p, n):
 def worker():
     while True:
         job = JQ.get()
+        if job.get("deleted"):
+            continue
         try:
             run_job(job)
         except Exception as e:
@@ -694,8 +696,25 @@ def worker():
             job.update(state="error", error=str(e), finished=time.time())
         finally:
             job.pop("pid", None)
-            with open(os.path.join(job["dir"], "job.json"), "w") as f:
-                json.dump({k: v for k, v in job.items() if k != "dir"}, f)
+            if job.get("deleted"):
+                shutil.rmtree(job["dir"], ignore_errors=True)
+            elif os.path.isdir(job["dir"]):
+                with open(os.path.join(job["dir"], "job.json"), "w") as f:
+                    json.dump({k: v for k, v in job.items() if k != "dir"}, f)
+
+
+def job_delete(j):
+    """Auftrag löschen; läuft er noch, wird OrcaSlicer abgebrochen."""
+    j["deleted"] = True
+    JOBS.pop(j["id"], None)
+    pid = j.get("pid")
+    if pid:
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    if j.get("state") != "running":
+        shutil.rmtree(j["dir"], ignore_errors=True)
 
 
 def job_public(j):
@@ -886,6 +905,9 @@ class H(http.server.BaseHTTPRequestHandler):
                     return self.err("Job nicht gefunden", 404)
                 if method == "GET" and not mm.group(2):
                     return self.send_json(job_public(j))
+                if method == "DELETE" and not mm.group(2):
+                    job_delete(j)
+                    return self.send_json({"ok": True})
                 if method == "GET" and mm.group(3):
                     r = (j.get("results") or [])[int(mm.group(3))]
                     return self.send_file(os.path.join(j["dir"], r["file"]), r["file"], "text/plain")
