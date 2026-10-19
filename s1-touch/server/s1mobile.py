@@ -584,6 +584,14 @@ def run_job(job):
     proc = PROFILES.flatten(req["process"])
     fil = PROFILES.flatten(req["filament"])
     apply_overrides(proc, fil, req.get("overrides"))
+    # Die Orca-CLI prüft, ob Prozess/Filament zum Drucker passen: sie vergleicht compatible_printers mit
+    # dem "Systemnamen" des Druckers (bei from=system = sein eigener Name). Die Profile sind vollständig
+    # aufgelöst, deshalb als "system" markieren und explizit miteinander verknüpfen (sonst Fehler -17).
+    for d in (mach, proc, fil):
+        d["from"] = "system"
+        d["inherits"] = ""
+    proc["compatible_printers"] = [mach["name"]]
+    fil["compatible_printers"] = [mach["name"]]
     files = {}
     for n, d in (("machine", mach), ("process", proc), ("filament", fil)):
         files[n] = os.path.join(jd, n + ".json")
@@ -625,7 +633,9 @@ def run_job(job):
                         gcodes.append(dst)
     if rc != 0 or not gcodes:
         tail = tail_file(logp, 2500)
-        raise RuntimeError(f"OrcaSlicer ist fehlgeschlagen (Code {rc}).\n{tail}")
+        code = rc - 256 if rc > 127 else rc
+        hint = CLI_ERR.get(code, "")
+        raise RuntimeError(f"OrcaSlicer ist fehlgeschlagen (Code {code})" + (f": {hint}" if hint else ".") + f"\n{tail}")
     base = safe_name(m["name"], 60)
     tag = re.sub(r"\s*·\s*PC$", "", req["process"])
     tag = safe_name(re.sub(r"@.*$", "", tag).strip(), 30)
@@ -639,6 +649,28 @@ def run_job(job):
         shutil.move(g, dst)
         results.append(dict(parse_gcode_stats(dst), file=fname, plate=pn, size=os.path.getsize(dst)))
     job.update(state="done", results=results, finished=time.time(), progress="Fertig")
+
+
+CLI_ERR = {
+    -1: "Slicer-Umgebung konnte nicht gestartet werden",
+    -2: "Ungültige Parameter",
+    -3: "Modell- oder Profildatei nicht gefunden",
+    -5: "Profildatei ungültig – Profil neu vom PC importieren",
+    -6: "Modelldatei kann nicht gelesen werden (defekt oder falsches Format)",
+    -14: "Nicht genug Arbeitsspeicher – dem Container mehr RAM geben (pct set <ID> --memory 4096)",
+    -17: "Prozessprofil passt nicht zum Drucker",
+    -21: "Objekte passen nicht auf das Druckbett (Größe verringern)",
+    -22: "Automatisches Ausrichten fehlgeschlagen – „Automatisch ausrichten“ ausschalten",
+    -50: "Kein druckbares Objekt auf dem Bett (zu groß oder außerhalb)",
+    -51: "Einstellungen ungültig (z. B. Schichthöhe größer als Düse erlaubt)",
+    -52: "Objekt ragt über das Druckbett hinaus – Größe verringern oder „Auf Platte anordnen“ einschalten",
+    -58: "Slicen dauert zu lange (Zeitlimit)",
+    -59: "Modell hat zu viele Dreiecke",
+    -61: "Filament passt nicht zur eingestellten Druckplatte",
+    -100: "Fehler beim Slicen (Modell prüfen/reparieren)",
+    -101: "Druckwege kollidieren",
+    -102: "Druckwege liegen außerhalb des druckbaren Bereichs",
+}
 
 
 def tail_file(p, n):
