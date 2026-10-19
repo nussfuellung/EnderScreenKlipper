@@ -443,6 +443,7 @@ function render(){raf=0;
 function progress(){const ps=ST.print_stats||{};if(ps.state==='complete')return 1;const v=ST.virtual_sdcard,d=ST.display_status;return (v&&v.progress)||(d&&d.progress)||0}
 function remaining(){const ps=ST.print_stats||{},p=progress(),d=ps.print_duration||0,est=KL.meta&&KL.meta.estimated_time;if(p>=1)return 0;if(p>0.08&&d>60)return d/p-d;if(est)return est*(1-p);return null}
 function notifyDone(st,fn){const t={complete:'Druck fertig ✓',error:'Druck mit Fehler beendet',cancelled:'Druck abgebrochen'}[st];toast(`${t}: ${baseName(fn||'')}`);
+ if(CFG.notify&&window.S1Native){try{S1Native.notify(t,baseName(fn||''))}catch(e){}return}
  if(CFG.notify&&'Notification' in window&&Notification.permission==='granted'&&navigator.serviceWorker){navigator.serviceWorker.getRegistration().then(r=>r&&r.showNotification(t,{body:baseName(fn||''),icon:'/icons/icon-192.png',tag:'s1-print'})).catch(()=>{})}}
 
 /* ===================== Tab: Drucker ===================== */
@@ -657,7 +658,8 @@ async function startSlice(){const o=SL.ov,ov={};
  if(o.infill!=null)ov.sparse_infill_density=o.infill;if(o.layer!=null)ov.layer_height=o.layer;if(o.walls!=null)ov.wall_loops=o.walls;if(o.brim!=='profile')ov.brim_type=o.brim;
  ov.orient=o.orient;ov.arrange=o.arrange;ov.scale=o.scale;if(o.ntemp)ov.nozzle_temp=+o.ntemp;if(o.btemp)ov.bed_temp=+o.btemp;
  CFG.last={machine:SL.sel.machine,process:SL.sel.process,filament:SL.sel.filament};save();
- try{const j=await bk('/slice',{json:{model:SL.model.id,machine:SL.sel.machine,process:SL.sel.process,filament:SL.sel.filament,overrides:ov}});SL.job=j.id;SL.jobData=j;renderSlicer();pollSlice()}
+ let thumbs=null;try{thumbs=window.Viewer&&window.Viewer.snapshot?window.Viewer.snapshot():null}catch(e){}
+ try{const j=await bk('/slice',{json:{model:SL.model.id,machine:SL.sel.machine,process:SL.sel.process,filament:SL.sel.filament,overrides:ov,thumbs}});SL.job=j.id;SL.jobData=j;renderSlicer();pollSlice()}
  catch(e){toast(e.message,'err')}}
 async function pollSlice(){clearTimeout(SL.poll);if(!SL.job)return;try{const j=await bk('/jobs/'+SL.job);SL.jobData=j;renderSlicer();
  if(j.state==='error'){toast('Slicen fehlgeschlagen','err');jobDetail(j)}if(j.state==='queued'||j.state==='running')SL.poll=setTimeout(pollSlice,1000);else loadProjects()}catch(e){SL.poll=setTimeout(pollSlice,2500)}}
@@ -692,8 +694,9 @@ function buildMe(){$('#t-me').innerHTML=`<div class="wrap"><div class="hdr"><h1>
  </div></div>
  <div class="sec"><h2>App</h2><div class="list">
   <div class="row"><span class="ri">${ic('moon')}</span><span class="rt"><b>Darstellung</b></span><div class="seg" style="width:190px">${[['auto','Auto'],['light','Hell'],['dark','Dunkel']].map(([v,n])=>`<button class="${CFG.theme===v?'on':''}" data-a="theme" data-v="${v}">${n}</button>`).join('')}</div></div>
-  <div class="row"><span class="ri">${ic('bell')}</span><span class="rt"><b>Benachrichtigung bei Druckende</b><small>solange die App geöffnet ist</small></span><button class="sw ${CFG.notify?'on':''}" data-a="notify" id="me-not"></button></div>
+  <div class="row"><span class="ri">${ic('bell')}</span><span class="rt"><b>Benachrichtigung bei Druckende</b><small>solange die App ${window.S1Native?'im Hintergrund läuft':'geöffnet ist'}</small></span><button class="sw ${CFG.notify?'on':''}" data-a="notify" id="me-not"></button></div>
   <div class="row"><span class="ri">${ic('info')}</span><span class="rt"><b>Demo-Modus</b><small>Alles ohne Drucker & Server ausprobieren</small></span><button class="sw ${CFG.demo?'on':''}" data-a="demo"></button></div>
+  ${window.S1Native?`<button class="row tap" data-a="nativeServer"><span class="ri">${ic('server')}</span><span class="rt"><b>Server-Adresse (App)</b><small>${esc((()=>{try{return S1Native.server()}catch(e){return ''}})())}</small></span>${ic('chev','chev')}</button>`:''}
   <a class="row tap" id="me-tablet" href="#" target="_blank"><span class="ri">${ic('ext')}</span><span class="rt"><b>Tablet-Oberfläche öffnen</b></span>${ic('chev','chev')}</a>
   <div class="row"><span class="ri">${ic('gear')}</span><span class="rt"><b>Slicer-Server</b><small id="me-srv">–</small></span></div>
  </div></div><p class="sub" style="text-align:center;padding:4px 0 24px">S1 Mobile 1.0 · für Ender-3 S1 mit Klipper</p></div>`;
@@ -763,10 +766,11 @@ const ACT={
  ov:(v,b)=>{const k=b.dataset.k;SL.ov[k]=v==='null'?null:(isNaN(+v)?v:+v);if(k==='scale'&&window.Viewer)window.Viewer.setScale(+v);renderSlicer()},
  ovt:(v,b)=>{const k=b.dataset.k;SL.ov[k]=!SL.ov[k];renderSlicer()},
  // Ich
- pickProf:()=>$('#f-prof').click(), profHelp:()=>profHelp(),
+ pickProf:()=>$('#f-prof').click(), profHelp:()=>profHelp(), nativeServer:()=>{try{S1Native.changeServer()}catch(e){}},
  profClear:()=>confirmS('Alle importierten PC-Profile löschen? (Sync-Ordner bleibt unberührt.)','Löschen',()=>bk('/profiles/clear',{json:{}}).then(()=>{toast('Gelöscht');loadMe()}).catch(e=>toast(e.message,'err')),true),
  theme:v=>{CFG.theme=v;save();applyTheme();buildMe()},
- notify:async()=>{if(!CFG.notify&&'Notification' in window){const p=await Notification.requestPermission().catch(()=>'denied');if(p!=='granted')return toast('Benachrichtigungen wurden nicht erlaubt','err')}CFG.notify=!CFG.notify;save();$('#me-not').classList.toggle('on',CFG.notify)},
+ notify:async()=>{if(window.S1Native){if(!CFG.notify)try{S1Native.requestNotify()}catch(e){}CFG.notify=!CFG.notify;save();$('#me-not').classList.toggle('on',CFG.notify);return}
+  if(!CFG.notify&&'Notification' in window){const p=await Notification.requestPermission().catch(()=>'denied');if(p!=='granted')return toast('Benachrichtigungen wurden nicht erlaubt','err')}CFG.notify=!CFG.notify;save();$('#me-not').classList.toggle('on',CFG.notify)},
  demo:()=>{if(FILE)return toast('Lokal geöffnet – Demo bleibt an');CFG.demo=!CFG.demo;save();Demo.stop();M.connect();PJ.loaded=false;DS.items=[];DS.err='';buildMe();toast(CFG.demo?'Demo-Modus an':'Demo-Modus aus')},
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const f=ACT[b.dataset.a];if(f){if(b.tagName==='A'&&b.getAttribute('href')==='#')e.preventDefault();f(b.dataset.v,b,e)}});
@@ -870,7 +874,7 @@ function mount(el,url,ext,getScale){dispose();if(!el)return;const msg=el.querySe
  const grid=new THREE.GridHelper(220,11,dark?0x4a5160:0x6b645b,dark?0x3a404c:0x57514a);grid.position.y=.05;scene.add(grid);
  const controls=new OrbitControls(cam,renderer.domElement);controls.enableDamping=true;controls.target.set(0,20,0);controls.maxPolarAngle=Math.PI*0.495;
  cam.position.set(190,200,250);
- R={renderer,scene,cam,controls,obj:null,size:null,raf:0};
+ R={renderer,scene,cam,controls,obj:null,size:null,raf:0,plate,grid};
  const fit=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};fit();R.ro=new ResizeObserver(fit);R.ro.observe(el);
  const loop=()=>{R.raf=requestAnimationFrame(loop);controls.update();renderer.render(scene,cam)};loop();
  const mat=new THREE.MeshStandardMaterial({color:0x3b82f6,roughness:.55,metalness:.05});
@@ -889,8 +893,17 @@ function mount(el,url,ext,getScale){dispose();if(!el)return;const msg=el.querySe
 function setScale(p){if(!R||!R.obj)return;const k=(+p||100)/100;R.obj.scale.setScalar(k);const s=R.size;const m=Math.max(s[0],s[1],s[2])*k;
  R.controls.target.set(0,s[2]*k*0.4,0);const d=Math.max(160,m*2.4);R.cam.position.set(d*0.62,d*0.62,d*0.85);
  window.dispatchEvent(new Event('viewer-ready'))}
+/* Vorschaubild fürs G-Code (OrcaSlicer-CLI rendert keine): Modell schräg von vorn, transparenter Hintergrund */
+function snapshot(){if(!R||!R.obj)return null;const out=[];
+ const rr=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});rr.setPixelRatio(1);rr.setSize(300,300,false);rr.setClearColor(0x000000,0);
+ const cam=new THREE.PerspectiveCamera(30,1,0.1,10000),b=new THREE.Box3().setFromObject(R.obj),c=b.getCenter(new THREE.Vector3()),r=Math.max(b.getSize(new THREE.Vector3()).length()/2,1);
+ cam.position.copy(c).addScaledVector(new THREE.Vector3(0.9,0.75,1.3).normalize(),r/Math.sin(THREE.MathUtils.degToRad(15))*1.12);cam.lookAt(c);
+ const pv=R.plate.visible,gv=R.grid.visible;R.plate.visible=false;R.grid.visible=false;rr.render(R.scene,cam);R.plate.visible=pv;R.grid.visible=gv;
+ const big=rr.domElement;out.push({w:300,h:300,png:big.toDataURL('image/png').split(',')[1]});
+ const sm=document.createElement('canvas');sm.width=sm.height=96;sm.getContext('2d').drawImage(big,0,0,96,96);out.push({w:96,h:96,png:sm.toDataURL('image/png').split(',')[1]});
+ rr.dispose();try{rr.forceContextLoss()}catch(e){}return out}
 function dims(p){if(!R||!R.size)return null;const k=(+p||100)/100;return R.size.map(v=>Math.round(v*k))}
-window.Viewer={mount,dispose,setScale,dims};
+window.Viewer={mount,dispose,setScale,dims,snapshot};
 window.addEventListener('viewer-ready',()=>{if(typeof schedule==='function')schedule()});
 </script>
 </body>

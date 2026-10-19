@@ -9,6 +9,7 @@ s1-touch/
 ├── klipper/moonraker_power.conf ← optional: Netzteil/Licht über Moonraker + HA
 ├── mobile/                   ← Handy-App „S1 Mobile“ (PWA)
 ├── server/s1mobile.py        ← Slicer-/Printables-Backend für die Handy-App
+├── android/                  ← Android-App (S1Mobile.apk + Quellcode, build.sh)
 └── deploy/
     ├── docker-compose.yml    ← Variante A: Docker (nginx + Proxy)
     ├── .env.example          ← Klipper-IP, Home-Assistant-URL & Token
@@ -167,3 +168,15 @@ Printables hat keine offizielle API. Die App nutzt dieselbe Schnittstelle wie di
 - `journalctl -u s1-mobile -f` – Server-Log; schlägt Slicen fehl, zeigt die App das Orca-Log unter *Projekte → Auftrag antippen*.
 - „OrcaSlicer startet nicht“ beim Installieren: fehlende Bibliotheken werden angezeigt → mit `apt install` nachinstallieren.
 - Moonraker lehnt den Upload ab → Container-IP unter `trusted_clients` in `moonraker.conf` eintragen.
+
+## Android-App (APK)
+
+`android/S1Mobile.apk` ist eine schlanke App (≈50 kB), die die Handy-App von deinem Server lädt – **ohne HTTPS**, mit eigenem App-Symbol, Datei-Upload, Downloads, Benachrichtigung bei Druckende (solange die App im Hintergrund offen ist) und **Teilen → S1 Mobile** für Printables-Links. Beim ersten Start fragt sie nach der Server-Adresse (z. B. `http://192.168.188.71:8081`), änderbar unter *Ich → Server-Adresse*.
+
+Installieren: APK aufs Handy laden → öffnen → „Installation aus unbekannten Quellen“ für den Browser/Dateimanager erlauben → bei Play Protect „Trotzdem installieren“.
+
+Selbst bauen (Debian/Ubuntu): `apt install android-sdk-platform-23 aapt zipalign apksigner dalvik-exchange openjdk-17-jdk-headless` → `bash android/build.sh`. Die Datei `android/s1mobile.keystore` nicht löschen – Updates müssen mit demselben Schlüssel signiert sein.
+
+## Vorschaubilder beim Slicen auf dem Server
+
+Die OrcaSlicer-CLI kann ohne Bildschirm keine Vorschaubilder rendern. Deshalb fotografiert die Handy-App beim Tippen auf „Slicen“ ihre 3D-Vorschau und der Server bettet das Bild in den G-Code ein (300×300 und 96×96 PNG) – Tablet, Handy und Mainsail zeigen es dann an. Bei STEP-Dateien (keine 3D-Vorschau) gibt es kein Bild.

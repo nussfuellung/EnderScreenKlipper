@@ -647,7 +647,14 @@ def run_job(job):
         fname = fname.replace(" ", "_")
         dst = os.path.join(jd, fname)
         shutil.move(g, dst)
-        results.append(dict(parse_gcode_stats(dst), file=fname, plate=pn, size=os.path.getsize(dst)))
+        st = parse_gcode_stats(dst)
+        if not st.get("thumbnail") and job.get("thumbs"):
+            try:
+                embed_thumbs(dst, job["thumbs"])
+                st["thumbnail"] = True
+            except Exception as e:
+                log("Vorschaubild einbetten fehlgeschlagen:", e)
+        results.append(dict(st, file=fname, plate=pn, size=os.path.getsize(dst)))
     job.update(state="done", results=results, finished=time.time(), progress="Fertig")
 
 
@@ -673,6 +680,44 @@ CLI_ERR = {
 }
 
 
+def clean_thumbs(t):
+    """Vorschaubilder aus der App (PNG, base64) prüfen – die Orca-CLI rendert ohne Bildschirm keine."""
+    import base64
+    out = []
+    for x in (t or [])[:3]:
+        try:
+            w, h, png = int(x["w"]), int(x["h"]), str(x["png"])
+            if not (16 <= w <= 600 and 16 <= h <= 600) or len(png) > 1_500_000:
+                continue
+            if not base64.b64decode(png[:24] + "=" * (-len(png[:24]) % 4)).startswith(b"\x89PNG"):
+                continue
+            out.append({"w": w, "h": h, "png": re.sub(r"\s", "", png)})
+        except Exception:
+            continue
+    return out
+
+
+def embed_thumbs(path, thumbs):
+    """Vorschaubilder im PrusaSlicer/Orca-Format (; thumbnail begin WxH LEN) an den Dateianfang schreiben –
+    Moonraker liest sie beim Upload aus, Tablet und Handy zeigen sie dann an."""
+    blk = ""
+    for t in sorted(thumbs, key=lambda x: x["w"]):
+        b64 = t["png"]
+        blk += f";\n; thumbnail begin {t['w']}x{t['h']} {len(b64)}\n"
+        blk += "".join(f"; {b64[i:i + 78]}\n" for i in range(0, len(b64), 78))
+        blk += "; thumbnail end\n;\n"
+    tmp = path + ".tmp"
+    with open(path, "rb") as f, open(tmp, "wb") as o:
+        head = f.read(65536)
+        i = head.find(b"; HEADER_BLOCK_END")
+        j = head.find(b"\n", i) + 1 if i >= 0 else 0
+        o.write(head[:j])
+        o.write(blk.encode())
+        o.write(head[j:])
+        shutil.copyfileobj(f, o)
+    os.replace(tmp, path)
+
+
 def tail_file(p, n):
     try:
         with open(p, "rb") as f:
@@ -689,6 +734,7 @@ def worker():
         job = JQ.get()
         if job.get("deleted"):
             continue
+        job.setdefault("thumbs", [])
         try:
             run_job(job)
         except Exception as e:
@@ -700,7 +746,7 @@ def worker():
                 shutil.rmtree(job["dir"], ignore_errors=True)
             elif os.path.isdir(job["dir"]):
                 with open(os.path.join(job["dir"], "job.json"), "w") as f:
-                    json.dump({k: v for k, v in job.items() if k != "dir"}, f)
+                    json.dump({k: v for k, v in job.items() if k not in ("dir", "thumbs")}, f)
 
 
 def job_delete(j):
@@ -718,7 +764,7 @@ def job_delete(j):
 
 
 def job_public(j):
-    d = {k: v for k, v in j.items() if k not in ("dir", "pid")}
+    d = {k: v for k, v in j.items() if k not in ("dir", "pid", "thumbs")}
     if j["state"] in ("running", "error"):
         d["log"] = tail_file(os.path.join(j["dir"], "slicer.log"), 1500)
     if j["state"] == "queued":
@@ -879,6 +925,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # ---- Slicen
             if method == "POST" and path == "/slice":
                 b = self.body_json()
+                thumbs = clean_thumbs(b.pop("thumbs", None))
                 for k in ("model", "machine", "process", "filament"):
                     if not b.get(k):
                         raise ValueError(f"„{k}“ fehlt")
@@ -890,7 +937,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 jid = uuid.uuid4().hex[:12]
                 jd = os.path.join(D_JOBS, jid)
                 os.makedirs(jd)
-                job = {"id": jid, "dir": jd, "req": b, "state": "queued", "created": time.time(),
+                job = {"id": jid, "dir": jd, "req": b, "state": "queued", "created": time.time(), "thumbs": thumbs,
                        "model_name": m["name"], "progress": "In Warteschlange"}
                 JOBS[jid] = job
                 JQ.put(job)
